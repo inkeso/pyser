@@ -16,46 +16,17 @@
 
 import re
 import curses
-#import serial
-from collections import deque
+import serial
 
 # https://docs.python.org/3/howto/curses.html
 # https://docs.python.org/3/library/curses.html
 
 # CONFIG (TODO: getopts)
-DEVICE="/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+BAUD = 9600
 PADSIZE = 10000 # number of lines to keep in scrollback-pad
 RECDUMP = "/dev/null" # record Received bytes to a file
 SNDDUMP = "/dev/null" # record Sent bytes to a file
-
-
-class receiveBuffer():
-    """
-    Wrapper for a string not exceeding a specific length.
-    Also functions for "rendering" said string.
-    """
-    def __init__():
-        self.hexbuffer = []
-        self.ascbuffer = []
-    
-    def append(self, s):
-        # TODO: The performance may suck at the moment,test and optimize later.
-        s = "\n asdf \n ghjk \r\n\n\n\r\r\r" ## ??
-        
-        sa = s.replace("\r", "\n")
-        sa = re.split("\n+", sa)
-        # OK, jetzt noch umbrechen wenn 
-        
-        
-    
-    def rAscii(self, h, w, offset):
-        """render a section as ascii.
-        return a list with up to `h` strings, each no longer then `w` characters
-        offset is used for scrolling.
-        """
-        s = self.buffer[-(w*h):]
-        
-    
 
 class sWin(): 
     """Simple widget for displaying text and allowing for scroll"""
@@ -113,10 +84,8 @@ lips = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod 
 
 def main(scr):
     scr.clear()
-    # we need this so curses doesn't clear screen on next getch():
     scr.nodelay(True)
     scr.getch()
-    scr.nodelay(False)
     
     # Styles
     curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE) # header
@@ -128,7 +97,7 @@ def main(scr):
     out_asc = sWin("Received / Sent (Text)", 25, 80, 0, 0)
     out_hex = sWin("Received / Sent (Hex)", 25, 80, 0, 80)
     
-    out_asc.append("Lorem ipsum dolor sit amet consectetur adipisci ach was weiß denn ich wie der Kladderadatsch hier weitergeht haptsache ich habe einen scheißlangen teststring mit keinem einzigen Umbruch... Na, was machste JETZT curses? Fluchen? (gnihi)\n\n")
+    out_asc.append("Begrüßed den PySer! (Vörsion Null, ganz ohne Kleider)\n\n")
 
     # and now wait for some input in a box
     # i'd like to have readline-functionality...
@@ -148,31 +117,50 @@ def main(scr):
         dbg.border()
         dbg.addstr(1,1,s)
         dbg.refresh()
-    
+
+    # Prepare Serial Port
+    try:
+        ser = serial.Serial(DEVICE, BAUD)
+        ser.timeout=.05
+    except serial.SerialException as e:
+        ser = None
+        out_asc.append("CONNECTION FAILED\n", send=True)
+        out_asc.append(str(e))
+
     while True:
         in_str.refresh()
         c = scr.getch()
 
+        # TODO: Inputhandling kann so nich bleiben. aber erstmal langts.
         # Also je nach Modus wäre ja GNU readline geil...
-        if 31 < c < 127: # TODO das kann so nich bleiben. aber erstmal langts.
+        if c == -1: # no input
+            if ser:
+                rx = ser.read()
+                while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
+                if len(rx) > 1: 
+                    data = "".join(chr(x) for x in rx)
+                    out_asc.append(data.replace("\r",""), send=False)
+                    in_str.refresh()
+        
+        elif 31 < c < 127: # ASCII
             inp += chr(c)
             in_str.addstr(1,1, inp)
-            #in_str.refresh()
-        elif c == 10:
-            # send
+        
+        elif c == 10: # ENTER
             out_asc.append(inp+"\n", send=True)
+            # currently without newline
+            if ser: ser.write(bytes([ord(x) for x in inp]))
             inp = ""
             in_str.erase()
             in_str.border()
             in_str.move(1,1)
-            #in_str.refresh()
         
-        elif c == curses.KEY_F1: # FUNNN
+        elif c == curses.KEY_F1: # FUN: insert lorem ipsum (test)
             out_asc.append(lips, send=True)
             out_asc.scroll("end")
             out_hex.scroll("end")
-        # scroll
-        elif c == curses.KEY_NPAGE:
+        
+        elif c == curses.KEY_NPAGE: # SCROLL
             out_asc.scroll("down")
             out_hex.scroll("down")
             
