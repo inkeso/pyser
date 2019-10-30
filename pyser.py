@@ -3,6 +3,7 @@
 #
 # Full featured serial console but with a fancy ncurses-TUI.
 
+import re
 import curses
 #import serial
 from collections import deque
@@ -12,18 +13,37 @@ from collections import deque
 
 # CONFIG (TODO: getopts)
 DEVICE="/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
-BUFFERSIZE = 1024*1024
+BUFFERSIZE = 10000 # number of lines to keep in scrollback
+RECDUMP = "/dev/null" # record Received bytes to a file
+SNDDUMP = "/dev/null" # record Sent bytes to a file
 
 
 class receiveBuffer():
+    """
+    Wrapper for a string not exceeding a specific length.
+    Also functions for "rendering" said string.
+    """
     def __init__():
-        self.buffer = deque("",BUFFERSIZE)
-        # oder doch einfache liste mit vorne wegschneiden wenn zu gro?
+        self.hexbuffer = []
+        self.ascbuffer = []
+    
+    def append(self, s):
+        # TODO: The performance may suck at the moment,test and optimize later.
+        s = "\n asdf \n ghjk \r\n\n\n\r\r\r" ## ??
+        
+        sa = s.replace("\r", "\n")
+        sa = re.split("\n+", sa)
+        # OK, jetzt noch umbrechen wenn 
+        
         
     
-    def append(self,s):
-        #......
-    
+    def rAscii(self, h, w, offset):
+        """render a section as ascii.
+        return a list with up to `h` strings, each no longer then `w` characters
+        offset is used for scrolling.
+        """
+        s = self.buffer[-(w*h):]
+        
     
 
 class sWin(): 
