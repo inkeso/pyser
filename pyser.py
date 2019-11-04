@@ -24,9 +24,15 @@ import serial
 # CONFIG (TODO: getopts)
 DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
 BAUD = 9600
-PADSIZE = 10000 # number of lines to keep in scrollback-pad
+PADSIZE = 12 # number of lines to keep in scrollback-pad
 RECDUMP = "/dev/null" # record Received bytes to a file
 SNDDUMP = "/dev/null" # record Sent bytes to a file
+
+DBG=open("/tmp/pyser_dbg.log","w")
+def dbglog(s):
+    DBG.write(s)
+    DBG.flush()
+
 
 class sWin(): 
     """Simple widget for displaying text and allowing for scroll"""
@@ -43,7 +49,6 @@ class sWin():
         self.pad = curses.newpad(PADSIZE, w-2)
         self.pad.move(0,0)
         self.scrollpos = 0
-        self.buffer = ""
     
     def display(self):
         h,w,y,x = self.coords
@@ -62,21 +67,28 @@ class sWin():
         self.display()
     
     def append(self, s, send=False):
-        self.buffer += s
+        # First of all: check if pad has still enough space left.
+        br = self.coords[1]-2
+        nrows = sum([len(x) // br + 1 for x in s.split("\n")])
+        cy, cx = self.pad.getyx()
+        if (cy + nrows) >= PADSIZE: # uh-oh
+            rem = nrows - (PADSIZE - cy) + 1 # remove just enough rows
+            self.pad.move(0, 0)
+            for i in range(rem): self.pad.deleteln()
+            cy -= rem
+            if cy < 0: # Ooops, buffer too small (see below)
+                cy = 0
+                cx = 0
+            self.pad.move(cy, cx)
         
-        # TODO: hier doch lieber zeilen zählen und nicht s adden sondern [] und so?
-        # Kommt das nich durcheinander?
-        try:
+        try: # this may still explode if something bigger than buffer is comming in (unlikely)
             self.pad.addstr(s, curses.color_pair(2+send))
         except curses.error:
-            self.pad.erase()
-            self.pad.addstr(self.buffer[-1000:]) ## TODO
-            # window.deleteln() Delete the line under the cursor. All following lines are moved up by one line.
-            # Vorher Cursor speichern?
+            cy, cx = self.pad.getyx()
+            self.pad.move(cy, 0)
+            self.pad.addstr(" *** TRUNCATED *** ", curses.color_pair(4)+curses.A_BOLD)
         self.scroll("end")
         self.display()
-        
-        
 
 
 lips = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris."
@@ -91,6 +103,7 @@ def main(scr):
     curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE) # header
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK) # Received data
     curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK) # Sent data
+    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK) # ERROR
     
     # We can determine the size of the screen by using the curses.LINES and curses.COLS variables
     # let's create two windows for display stuff from DEVICE (ASCII and HEX)
@@ -127,6 +140,7 @@ def main(scr):
         out_asc.append("CONNECTION FAILED\n", send=True)
         out_asc.append(str(e))
 
+    sereadcount = 0
     while True:
         in_str.refresh()
         c = scr.getch()
@@ -137,10 +151,11 @@ def main(scr):
             if ser:
                 rx = ser.read()
                 while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
-                if len(rx) > 1: 
+                if len(rx) > 0: 
                     data = "".join(chr(x) for x in rx)
                     out_asc.append(data.replace("\r",""), send=False)
                     in_str.refresh()
+                    sereadcount += 1
         
         elif 31 < c < 127: # ASCII
             inp += chr(c)
@@ -155,7 +170,7 @@ def main(scr):
             in_str.border()
             in_str.move(1,1)
         
-        elif c == curses.KEY_F1: # FUN: insert lorem ipsum (test)
+        elif c == curses.KEY_F11: # FUN: insert lorem ipsum (test, no write to ser)
             out_asc.append(lips, send=True)
             out_asc.scroll("end")
             out_hex.scroll("end")
@@ -176,8 +191,10 @@ def main(scr):
             out_asc.scroll("end")
             out_hex.scroll("end")
 
-        else:
-            debug("unknown Key: "+str(c))
+        #else:
+        #    debug("unknown Key: "+str(c))
+        
+        debug("serreads: "+str(sereadcount))
         
         #foo = in_str.getstr().decode()
         #out_asc.append(foo+"\n")
