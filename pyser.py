@@ -15,7 +15,8 @@
 
 
 import curses
-import serial
+#import serial
+import serdummy as serial
 import widgets
 import translate
 # https://docs.python.org/3/howto/curses.html
@@ -182,9 +183,8 @@ def main(scr):
 
     # Prepare Serial Port
     try:
-        ser = serial.Serial(DEVICE, BAUD)
+        ser = serial.Serial(DEVICE, BAUD, timeout=.05)
         gui.message("Connected to %s (%d baud)\n\n" % (DEVICE, BAUD))
-        ser.timeout=.05
     except serial.SerialException as e:
         ser = None
         gui.error("CONNECTION FAILED\n\n")
