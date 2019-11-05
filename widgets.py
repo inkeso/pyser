@@ -15,10 +15,9 @@ class TxtWin():
     
     def __init__(self, title, h, w, y, x):
         self.coords = (h,w,y,x) 
-        self.title = title
         self.win = curses.newwin(h,w,y,x)
         self.win.border()
-        self.win.addstr(0, 3, " %s " % self.title, COLOR["header"])
+        if title: self.win.addstr(0, 3, " %s " % title, COLOR["header"])
         self.win.refresh()
         self.scrollpos = 0
         self.hexoffset = 0
@@ -49,7 +48,7 @@ class TxtWin():
         self.showTranslate()
         
     def showTranslate(self):
-        self.win.addstr(0, self.coords[1] - 31, " F8 ", COLOR["key"])
+        self.win.addstr(0, self.coords[1] - 31, " F7 ", COLOR["key"])
         self.win.addstr("(Codepage) ", COLOR["hint"])
         self.win.addstr("%12s " % self.trTabs[self.inTranslate], COLOR["state"])
         self.win.refresh()
@@ -95,25 +94,31 @@ class TxtWin():
 class Input():
     """Our simple Input-Widget"""
 
-    stateStr = ["ASCII", "HEX"]
+    stateStr = ["ASCII", "Hex", "File"]
     breakStr = [["","None"], ["\n"," LF "], ["\r"," CR "], ["\r\n", "CRLF"], ["\0", "0x00"]]
 
     def __init__(self, h, w, y, x):
         self.coords = (h, w, y, x)
         self.win = curses.newwin(h, w, y, x)
-        self.win.border()
-        self.win.move(1,1)
         self.inp = ""
         self.inState = 0
         self.inBreak = 0
-        self.showState()
+        self.history = []
+        self.shist = -1
+        self.redraw()
         
-    def clear(self):
+    def redraw(self):
         self.win.erase()
         self.win.border()
-        self.win.move(1,1)
-        self.inp = ""
+        self.win.addstr(1,1, self.inp)
         self.showState()
+
+    def clear(self):
+        if self.inp and (len(self.history) == 0 or self.inp != self.history[0]):
+            self.history.insert(0, self.inp)
+        self.inp = ""
+        self.shist = -1
+        self.redraw()
     
     def append(self, c):
         try:
@@ -122,6 +127,26 @@ class Input():
             self.win.refresh()
         except curses.error:
             pass # ¯\_(ツ)_/¯
+
+    def goHistory(self, delta=1):
+        if len(self.history) == 0: return
+        self.shist += delta
+        if self.shist < 0:
+            self.shist = -1
+            self.inp = ""
+        else:
+            if self.shist >= len(self.history):
+                self.shist = len(self.history) - 1
+            self.inp = self.history[self.shist]
+        self.redraw()
+
+    def backspace(self):
+        self.inp = self.inp[:-1]
+        cy, cx = self.win.getyx()
+        cx -= 1
+        if cx < 1: cx = 1
+        self.win.addstr(cy, cx," ")
+        self.win.move(cy, cx)
     
     def nextBreak(self):
         self.inBreak = (self.inBreak + 1) % len(self.breakStr)

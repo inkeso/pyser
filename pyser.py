@@ -35,13 +35,12 @@ def main(scr):
     scr.getch()
     
     # Styles (see below)
-    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE) # header
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK) # Received data
-    curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK) # Sent data
-    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK) # ERROR
+    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE)  # header
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Received data
+    curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)   # Sent data
+    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # ERROR
     curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK) # offset
-    
-    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE) # status
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE)   # status
     
     widgets.COLOR = {
         "header" : curses.color_pair(1) + curses.A_BOLD,
@@ -59,14 +58,9 @@ def main(scr):
     # let's create two windows for display stuff from DEVICE (ASCII and HEX)
     ay, ax = curses.LINES, curses.COLS
     
-    out_asc = widgets.TxtWin("Received / Sent (Text)", ay-3, ax//2, 0, 0)
+    out_asc = widgets.TxtWin("", ay-3, ax//2, 0, 0)
     out_asc.showTranslate()
-
-    out_hex = widgets.TxtWin("Received / Sent (Hex)", ay-3, ax//2, 0, ax//2)
-    
-    
-    # and now wait for some input in a box
-    # i'd like to have readline-functionality...
+    out_hex = widgets.TxtWin("Hexdump", ay-3, ax//2, 0, ax//2)
     in_str = widgets.Input(3, ax, ay-3, 0)
 
     # Prepare Serial Port
@@ -80,7 +74,7 @@ def main(scr):
         out_asc.append(str(e))
 
     out_asc.display()
-    out_hex.display()
+    
     
     while True:
         in_str.win.refresh()
@@ -107,17 +101,23 @@ def main(scr):
             out_hex.appendHex(in_str.getInput(), "send")
             if ser: ser.write(in_str.getBytes())
             in_str.clear()
+    
+        elif c == curses.KEY_BACKSPACE: in_str.backspace()
+        elif c == curses.KEY_UP: in_str.goHistory(1)
+        elif c == curses.KEY_DOWN: in_str.goHistory(-1)
         
         elif c == curses.KEY_F1:
             out_asc.append("""
             F1 : Show this help
-            F2 : Pause/Unpause Transmition
-            F5 : Toggle Input mode (HEX/ASCII)
+            F2 : Pause/Unpause transmission                  [TODO]
+            F5 : Toggle Input mode (ASCII/Hex/File)          [TODO]
             F6 : Toggle CR/LF after input on send
-            F8 : Toggle Translation
+            F7 : Toggle Translation (in textview)
+            F8 : Toggle display of input / output in hexdump [TODO]
             F10: Quit
             PgUp/PgDn: Scroll ⅓ Page up/down
             Home/End : Scroll to top or bottom
+            ↓/↑ : go through input-history (repeat command)
             \n""", "offset")
             out_asc.scroll("end")
             
@@ -126,7 +126,7 @@ def main(scr):
         
         elif c == curses.KEY_F5: in_str.nextState()
         elif c == curses.KEY_F6: in_str.nextBreak()
-        elif c == curses.KEY_F8: out_asc.nextTranslate()
+        elif c == curses.KEY_F7: out_asc.nextTranslate()
 
         elif c == curses.KEY_F10:
             return
