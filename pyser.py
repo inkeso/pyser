@@ -14,135 +14,76 @@
 # - rechts Hexdump. Farbig. 16 byte pro Zeile. Kodierung wie oben. Input ggf auch anders hervorheben
 
 
-import re
 import curses
 import serial
-
+import widgets
 # https://docs.python.org/3/howto/curses.html
 # https://docs.python.org/3/library/curses.html
 
 # CONFIG (TODO: getopts)
 DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
 BAUD = 9600
-PADSIZE = 12 # number of lines to keep in scrollback-pad
+widgets.TxtWin.PADSIZE = 200 # number of lines to keep in scrollback-pad
 RECDUMP = "/dev/null" # record Received bytes to a file
 SNDDUMP = "/dev/null" # record Sent bytes to a file
 
-DBG=open("/tmp/pyser_dbg.log","w")
-def dbglog(s):
-    DBG.write(s)
-    DBG.flush()
-
-
-class sWin(): 
-    """Simple widget for displaying text and allowing for scroll"""
-    # You can speed performance and perhaps reduce screen flicker by issuing
-    # noutrefresh() calls on all windows, followed by a single curses.doupdate().
-    
-    def __init__(self, title, h, w, y, x):
-        self.coords = (h,w,y,x) 
-        self.title = title
-        self.win = curses.newwin(h,w,y,x)
-        self.win.border()
-        self.win.addstr(0, 3, " %s " % self.title, curses.color_pair(1) + curses.A_BOLD)
-        self.win.refresh()
-        self.pad = curses.newpad(PADSIZE, w-2)
-        self.pad.move(0,0)
-        self.scrollpos = 0
-    
-    def display(self):
-        h,w,y,x = self.coords
-        self.pad.refresh(self.scrollpos, 0, y+1, x+1, y+h-2, x+w-2)
-    
-    def scroll(self, pos="down"):
-        lpos = self.pad.getyx()[0] - self.coords[0] + 3
-        if pos == "down": self.scrollpos += 1
-        if pos == "up": self.scrollpos -= 1
-        if pos == "home": self.scrollpos = 0
-        if pos == "end": self.scrollpos = lpos 
-        
-        if self.scrollpos > lpos: self.scrollpos = lpos
-        if self.scrollpos < 0: self.scrollpos = 0
-        
-        self.display()
-    
-    def append(self, s, send=False):
-        # First of all: check if pad has still enough space left.
-        br = self.coords[1]-2
-        nrows = sum([len(x) // br + 1 for x in s.split("\n")])
-        cy, cx = self.pad.getyx()
-        if (cy + nrows) >= PADSIZE: # uh-oh
-            rem = nrows - (PADSIZE - cy) + 1 # remove just enough rows
-            self.pad.move(0, 0)
-            for i in range(rem): self.pad.deleteln()
-            cy -= rem
-            if cy < 0: # Ooops, buffer too small (see below)
-                cy = 0
-                cx = 0
-            self.pad.move(cy, cx)
-        
-        try: # this may still explode if something bigger than buffer is comming in (unlikely)
-            self.pad.addstr(s, curses.color_pair(2+send))
-        except curses.error:
-            cy, cx = self.pad.getyx()
-            self.pad.move(cy, 0)
-            self.pad.addstr(" *** TRUNCATED *** ", curses.color_pair(4)+curses.A_BOLD)
-        self.scroll("end")
-        self.display()
-
-
-lips = "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris."
-
+lips = "Lörem ipsüm → dolor sit amet, consectetur 😉 adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris."
 
 def main(scr):
     scr.clear()
     scr.nodelay(True)
     scr.getch()
     
-    # Styles
+    # Styles (see below)
     curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE) # header
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK) # Received data
     curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK) # Sent data
     curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK) # ERROR
+    curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK) # offset
+    
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE) # status
+    
+    widgets.COLOR = {
+        "header" : curses.color_pair(1) + curses.A_BOLD,
+        "text"   : curses.color_pair(2),
+        "send"   : curses.color_pair(3),
+        "error"  : curses.color_pair(4) + curses.A_BOLD,
+        "offset" : curses.color_pair(5),
+        "key"    : curses.color_pair(6) + curses.A_BOLD,
+        "hint"   : curses.color_pair(6) + curses.A_ITALIC,
+        "state"  : curses.color_pair(6)
+    }
+    
     
     # We can determine the size of the screen by using the curses.LINES and curses.COLS variables
     # let's create two windows for display stuff from DEVICE (ASCII and HEX)
-    out_asc = sWin("Received / Sent (Text)", 25, 80, 0, 0)
-    out_hex = sWin("Received / Sent (Hex)", 25, 80, 0, 80)
+    ay, ax = curses.LINES, curses.COLS
     
-    out_asc.append("Begrüßed den PySer! (Vörsion Null, ganz ohne Kleider)\n\n")
+    out_asc = widgets.TxtWin("Received / Sent (Text)", ay-3, ax//2, 0, 0)
+    out_asc.showTranslate()
 
+    out_hex = widgets.TxtWin("Received / Sent (Hex)", ay-3, ax//2, 0, ax//2)
+    
+    
     # and now wait for some input in a box
     # i'd like to have readline-functionality...
-    in_str = curses.newwin(3,80,25,0)
-    in_str.border()
-    in_str.move(1,1)
-    in_str.refresh()
-    inp = ""
-
-    dbg = curses.newwin(3,80,25,80)
-    dbg.border()
-    dbg.move(1,1)
-    dbg.refresh()
-    
-    def debug(s):
-        dbg.erase()
-        dbg.border()
-        dbg.addstr(1,1,s)
-        dbg.refresh()
+    in_str = widgets.Input(3, ax, ay-3, 0)
 
     # Prepare Serial Port
     try:
         ser = serial.Serial(DEVICE, BAUD)
+        out_asc.append("\nConnected to %s (%d baud)\n\n" % (DEVICE, BAUD), "offset")
         ser.timeout=.05
     except serial.SerialException as e:
         ser = None
-        out_asc.append("CONNECTION FAILED\n", send=True)
+        out_asc.append("\nCONNECTION FAILED\n\n", "error")
         out_asc.append(str(e))
 
-    sereadcount = 0
+    out_asc.display()
+    out_hex.display()
+    
     while True:
-        in_str.refresh()
+        in_str.win.refresh()
         c = scr.getch()
 
         # TODO: Inputhandling kann so nich bleiben. aber erstmal langts.
@@ -153,25 +94,46 @@ def main(scr):
                 while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
                 if len(rx) > 0: 
                     data = "".join(chr(x) for x in rx)
-                    out_asc.append(data.replace("\r",""), send=False)
-                    in_str.refresh()
-                    sereadcount += 1
-        
+                    out_asc.append(data, "text")
+                    out_hex.appendHex(data, "text")
+                    out_asc.scroll("end") # toggle off? pause?
+                    out_hex.scroll("end") # toggle off? pause?
+            
         elif 31 < c < 127: # ASCII
-            inp += chr(c)
-            in_str.addstr(1,1, inp)
+            in_str.append(chr(c))
         
         elif c == 10: # ENTER
-            out_asc.append(inp+"\n", send=True)
-            # currently without newline
-            if ser: ser.write(bytes([ord(x) for x in inp]))
-            inp = ""
-            in_str.erase()
-            in_str.border()
-            in_str.move(1,1)
+            out_asc.append(in_str.getInput(), "send")
+            out_hex.appendHex(in_str.getInput(), "send")
+            if ser: ser.write(in_str.getBytes())
+            in_str.clear()
+        
+        elif c == curses.KEY_F1:
+            out_asc.append("""
+            F1 : Show this help
+            F2 : Pause/Unpause Transmition
+            F5 : Toggle Input mode (HEX/ASCII)
+            F6 : Toggle CR/LF after input on send
+            F8 : Toggle Translation
+            F10: Quit
+            PgUp/PgDn: Scroll ⅓ Page up/down
+            Home/End : Scroll to top or bottom
+            \n""", "offset")
+            out_asc.scroll("end")
+            
+        elif c == curses.KEY_F2:
+            pass
+        
+        elif c == curses.KEY_F5: in_str.nextState()
+        elif c == curses.KEY_F6: in_str.nextBreak()
+        elif c == curses.KEY_F8: out_asc.nextTranslate()
+
+        elif c == curses.KEY_F10:
+            return
         
         elif c == curses.KEY_F11: # FUN: insert lorem ipsum (test, no write to ser)
-            out_asc.append(lips, send=True)
+            out_asc.append(lips, "send")
+            out_hex.appendHex(lips, "send")
             out_asc.scroll("end")
             out_hex.scroll("end")
         
@@ -190,11 +152,9 @@ def main(scr):
         elif c == curses.KEY_END:
             out_asc.scroll("end")
             out_hex.scroll("end")
-
-        #else:
-        #    debug("unknown Key: "+str(c))
-        
-        debug("serreads: "+str(sereadcount))
+        else:
+            out_asc.append("Unkown Key: %d\n" % c , "offset")
+            out_asc.display()
         
         #foo = in_str.getstr().decode()
         #out_asc.append(foo+"\n")
