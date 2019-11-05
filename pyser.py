@@ -29,6 +29,54 @@ SNDDUMP = "/dev/null" # record Sent bytes to a file
 
 lips = "Lörem ipsüm → dolor sit amet, consectetur 😉 adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris."
 
+
+class Gui():
+    HELP = """
+        F1 : Show this help
+        F2 : Pause/Unpause transmission                  [TODO]
+        F4 : Clear Views / reset counter
+        F5 : Toggle Input mode (ASCII/Hex/File)          [TODO]
+        F6 : Toggle CR/LF after input on send
+        F7 : Toggle Translation (in textview)
+        F8 : Toggle display of input / output in hexdump [TODO]
+        F10: Quit
+        PgUp/PgDn: Scroll ⅓ Page up/down
+        Home/End : Scroll to top or bottom
+        ↓/↑ : go through input-history (repeat command)
+    \n"""
+    
+    def __init__(self):
+        ay, ax = curses.LINES, curses.COLS
+        self.out_asc = widgets.TxtWin("", ay-3, ax//2, 0, 0)
+        self.out_asc.showTranslate()
+        self.out_hex = widgets.TxtWin("Hexdump", ay-3, ax//2, 0, ax//2)
+        self.in_str = widgets.Input(3, ax, ay-3, 0)
+
+    def show(self, s, color): # show stuff in both views and scroll to bottom
+        self.out_asc.append(s, color)
+        self.out_hex.appendHex(s, color)
+        self.out_asc.scroll("end") # toggle off? pause?
+        self.out_hex.scroll("end")
+        
+    def message(self, s): # show message with different color only in textview
+        self.out_asc.append(s, "offset")
+        self.out_asc.scroll("end")
+
+    def error(self, s): # show error message with different color only in textview
+        self.out_asc.append(s, "error")
+        self.out_asc.scroll("end")
+
+    def bscroll(self, s): # scroll both view
+        self.out_asc.scroll(s)
+        self.out_hex.scroll(s)
+
+    def emptyView(self):
+        self.out_asc.pad.erase()
+        self.out_hex.pad.erase()
+        self.out_hex.hexoffset = 0
+        self.out_asc.scroll("end")
+        self.out_hex.scroll("end")
+
 def main(scr):
     scr.clear()
     scr.nodelay(True)
@@ -53,31 +101,20 @@ def main(scr):
         "state"  : curses.color_pair(6)
     }
     
-    
-    # We can determine the size of the screen by using the curses.LINES and curses.COLS variables
-    # let's create two windows for display stuff from DEVICE (ASCII and HEX)
-    ay, ax = curses.LINES, curses.COLS
-    
-    out_asc = widgets.TxtWin("", ay-3, ax//2, 0, 0)
-    out_asc.showTranslate()
-    out_hex = widgets.TxtWin("Hexdump", ay-3, ax//2, 0, ax//2)
-    in_str = widgets.Input(3, ax, ay-3, 0)
+    gui = Gui()
 
     # Prepare Serial Port
     try:
         ser = serial.Serial(DEVICE, BAUD)
-        out_asc.append("\nConnected to %s (%d baud)\n\n" % (DEVICE, BAUD), "offset")
+        gui.message("Connected to %s (%d baud)\n\n" % (DEVICE, BAUD))
         ser.timeout=.05
     except serial.SerialException as e:
         ser = None
-        out_asc.append("\nCONNECTION FAILED\n\n", "error")
-        out_asc.append(str(e))
-
-    out_asc.display()
-    
+        gui.error("CONNECTION FAILED\n\n")
+        gui.message(str(e))
     
     while True:
-        in_str.win.refresh()
+        gui.in_str.win.refresh()
         c = scr.getch()
 
         # TODO: Inputhandling kann so nich bleiben. aber erstmal langts.
@@ -88,77 +125,38 @@ def main(scr):
                 while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
                 if len(rx) > 0: 
                     data = "".join(chr(x) for x in rx)
-                    out_asc.append(data, "text")
-                    out_hex.appendHex(data, "text")
-                    out_asc.scroll("end") # toggle off? pause?
-                    out_hex.scroll("end") # toggle off? pause?
-            
+                    gui.show(data, "text")
+        
         elif 31 < c < 127: # ASCII
-            in_str.append(chr(c))
+            gui.in_str.append(chr(c))
         
         elif c == 10: # ENTER
-            out_asc.append(in_str.getInput(), "send")
-            out_hex.appendHex(in_str.getInput(), "send")
-            if ser: ser.write(in_str.getBytes())
-            in_str.clear()
+            gui.show(gui.in_str.getInput(), "send")
+            if ser: ser.write(gui.in_str.getBytes())
+            gui.in_str.clear()
     
-        elif c == curses.KEY_BACKSPACE: in_str.backspace()
-        elif c == curses.KEY_UP: in_str.goHistory(1)
-        elif c == curses.KEY_DOWN: in_str.goHistory(-1)
-        
-        elif c == curses.KEY_F1:
-            out_asc.append("""
-            F1 : Show this help
-            F2 : Pause/Unpause transmission                  [TODO]
-            F5 : Toggle Input mode (ASCII/Hex/File)          [TODO]
-            F6 : Toggle CR/LF after input on send
-            F7 : Toggle Translation (in textview)
-            F8 : Toggle display of input / output in hexdump [TODO]
-            F10: Quit
-            PgUp/PgDn: Scroll ⅓ Page up/down
-            Home/End : Scroll to top or bottom
-            ↓/↑ : go through input-history (repeat command)
-            \n""", "offset")
-            out_asc.scroll("end")
-            
-        elif c == curses.KEY_F2:
-            pass
-        
-        elif c == curses.KEY_F5: in_str.nextState()
-        elif c == curses.KEY_F6: in_str.nextBreak()
-        elif c == curses.KEY_F7: out_asc.nextTranslate()
+        elif c == curses.KEY_BACKSPACE: gui.in_str.backspace()
+        elif c == curses.KEY_UP: gui.in_str.goHistory(1)
+        elif c == curses.KEY_DOWN: gui.in_str.goHistory(-1)
 
-        elif c == curses.KEY_F10:
-            return
-        
-        elif c == curses.KEY_F11: # FUN: insert lorem ipsum (test, no write to ser)
-            out_asc.append(lips, "send")
-            out_hex.appendHex(lips, "send")
-            out_asc.scroll("end")
-            out_hex.scroll("end")
-        
-        elif c == curses.KEY_NPAGE: # SCROLL
-            out_asc.scroll("down")
-            out_hex.scroll("down")
-            
-        elif c == curses.KEY_PPAGE:
-            out_asc.scroll("up")
-            out_hex.scroll("up")
-        
-        elif c == curses.KEY_HOME:
-            out_asc.scroll("home")
-            out_hex.scroll("home")
+        elif c == curses.KEY_F1: gui.message(gui.HELP)
+        elif c == curses.KEY_F2: pass
+        elif c == curses.KEY_F4: gui.emptyView()
+        elif c == curses.KEY_F5: gui.in_str.nextState()
+        elif c == curses.KEY_F6: gui.in_str.nextBreak()
+        elif c == curses.KEY_F7: gui.out_asc.nextTranslate()
+        elif c == curses.KEY_F10: return
 
-        elif c == curses.KEY_END:
-            out_asc.scroll("end")
-            out_hex.scroll("end")
-        else:
-            out_asc.append("Unkown Key: %d\n" % c , "offset")
-            out_asc.display()
-        
-        #foo = in_str.getstr().decode()
-        #out_asc.append(foo+"\n")
-        #out_hex.append(" ".join([hex(ord(x)) for x in foo]))
+        elif c == curses.KEY_NPAGE: gui.bscroll("down")
+        elif c == curses.KEY_PPAGE: gui.bscroll("up")
+        elif c == curses.KEY_HOME: gui.bscroll("home")
+        elif c == curses.KEY_END: gui.bscroll("end")
+
+        elif c == curses.KEY_F11: gui.show(lips, "send") # For fun an testing
+
+        #else:
+        #    out_asc.append("Ignored Key: %d\n" % c , "offset")
+        #    out_asc.display()
         
 curses.wrapper(main)
 

@@ -81,7 +81,7 @@ class TxtWin():
     def appendHex(self, s, color="text"):
         for c in s.encode():
             if self.hexoffset % 16 == 0:
-                self.append("\n%08X  " % self.hexoffset, "offset")
+                self.append(("\n" if self.hexoffset > 0 else "") +"%08X  " % self.hexoffset, "offset")
             cy, cx = self.pad.getyx()
             roff = self.hexoffset % 16
             self.pad.move(cy, 10 + roff * 3)
