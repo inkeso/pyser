@@ -20,7 +20,7 @@ class Serial():
                   timeout=None, write_timeout=None, inter_byte_timeout=None,
                   exclusive=None, **kwargs):
         self.timeout = timeout
-        self.buffer = b''
+        self.buffer = b"SERIAL DUMMY MODE. I'll answer with sha256 of your input.\r\n"
         self.lastfix=int(time.time())
     
     def read(self, n=0):

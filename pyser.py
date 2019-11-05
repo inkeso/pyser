@@ -29,9 +29,6 @@ widgets.TxtWin.PADSIZE = 200 # number of lines to keep in scrollback-pad
 RECDUMP = "/dev/null" # record Received bytes to a file
 SNDDUMP = "/dev/null" # record Sent bytes to a file
 
-lips = "Lörem ipsüm → dolor sit amet, consectetur 😉 adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris nisi utaliquip ex ea commodo consequat. Duis aute irure dolor inreprehenderit in voluptate velit esse cillum dolore eu fugiat nullapariatur. Excepteur sint occaecat cupidatat non proident, sunt inculpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed doeiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enimad minim veniam, quis nostrud exercitation ullamco laboris."
-
-
 class Toggle():
     def __init__(self, win, y, x, key, choices, hint=None, current=0):
         self.win = win
@@ -223,12 +220,6 @@ def main(scr):
 
         elif c in gui.keys: gui.keys[c].action()
         elif c in gui.toggles: gui.toggles[c].nextState()
-
-        elif c == curses.KEY_F11: gui.show(lips, "send") # For fun an testing
-
-        #else:
-        #    out_asc.append("Ignored Key: %d\n" % c , "offset")
-        #    out_asc.display()
 
 curses.wrapper(main)
 

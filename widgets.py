@@ -100,12 +100,14 @@ class Input():
         self.redraw()
 
     def append(self, c):
-        try:
-            self.inp += c
+        # boundry-check, "scroll" (well, trim left)
+        self.inp += c
+        sw = self.coords[1]-3
+        if len(self.inp) < sw:
             self.win.addstr(c)
-            self.win.refresh()
-        except curses.error:
-            pass # ¯\_(ツ)_/¯
+        else:
+            self.win.addstr(1,1, self.inp[-sw:])
+        self.win.refresh()
 
     def goHistory(self, delta=1):
         if len(self.history) == 0: return
@@ -120,12 +122,16 @@ class Input():
         self.redraw()
 
     def backspace(self):
+        sw = self.coords[1]-3
         self.inp = self.inp[:-1]
-        cy, cx = self.win.getyx()
-        cx -= 1
-        if cx < 1: cx = 1
-        self.win.addstr(cy, cx," ")
-        self.win.move(cy, cx)
+        if len(self.inp) < sw:
+            cy, cx = self.win.getyx()
+            cx -= 1
+            if cx < 1: cx = 1
+            self.win.addstr(cy, cx," ")
+            self.win.move(cy, cx)
+        else:
+            self.win.addstr(1, 1, self.inp[-sw:])
 
     def getInput(self, end=""):
         return self.inp + end
