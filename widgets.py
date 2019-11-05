@@ -11,7 +11,8 @@ class TxtWin():
     # You can speed performance and perhaps reduce screen flicker by issuing
     # noutrefresh() calls on all windows, followed by a single curses.doupdate().
     
-    PADSIZE = 200
+    PADSIZE = 2000
+    hexModes = ["Both", "Receive", "Send"]
     
     def __init__(self, title, h, w, y, x):
         self.coords = (h,w,y,x) 
@@ -21,6 +22,7 @@ class TxtWin():
         self.win.refresh()
         self.scrollpos = 0
         self.hexoffset = 0
+        self.inHex = 0
         self.inTranslate = 0
         self.trTabs = list(translate.PAGES.keys())
         self.pad = curses.newpad(self.PADSIZE, w-2)
@@ -48,9 +50,22 @@ class TxtWin():
         self.showTranslate()
         
     def showTranslate(self):
+        self.win.addstr(0, self.coords[1] - 43, " F4 ", COLOR["key"])
+        self.win.addstr("Clear ", COLOR["state"])
+
         self.win.addstr(0, self.coords[1] - 31, " F7 ", COLOR["key"])
         self.win.addstr("(Codepage) ", COLOR["hint"])
         self.win.addstr("%12s " % self.trTabs[self.inTranslate], COLOR["state"])
+        self.win.refresh()
+
+    def nextHex(self):
+        self.inHex = (self.inHex + 1) % len(self.hexModes)
+        self.showHex()
+    
+    def showHex(self):
+        self.win.addstr(0, 3, " F8 ", COLOR["key"])
+        self.win.addstr("(Show Stream) ", COLOR["hint"])
+        self.win.addstr("%6s " % self.hexModes[self.inHex], COLOR["state"])
         self.win.refresh()
         
     def append(self, s, color="text"):
@@ -94,7 +109,7 @@ class TxtWin():
 class Input():
     """Our simple Input-Widget"""
 
-    stateStr = ["ASCII", "Hex", "File"]
+    stateStr = ["ASCII"] #, "Hex", "File"]
     breakStr = [["","None"], ["\n"," LF "], ["\r"," CR "], ["\r\n", "CRLF"], ["\0", "0x00"]]
 
     def __init__(self, h, w, y, x):

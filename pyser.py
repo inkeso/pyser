@@ -38,10 +38,12 @@ class Gui():
         F5 : Toggle Input mode (ASCII/Hex/File)          [TODO]
         F6 : Toggle CR/LF after input on send
         F7 : Toggle Translation (in textview)
-        F8 : Toggle display of input / output in hexdump [TODO]
+        F8 : Toggle display of input / output in hexdump
         F10: Quit
+        
         PgUp/PgDn: Scroll ⅓ Page up/down
         Home/End : Scroll to top or bottom
+        
         ↓/↑ : go through input-history (repeat command)
     \n"""
     
@@ -50,13 +52,19 @@ class Gui():
         self.out_asc = widgets.TxtWin("", ay-3, ax//2, 0, 0)
         self.out_asc.showTranslate()
         self.out_hex = widgets.TxtWin("Hexdump", ay-3, ax//2, 0, ax//2)
+        self.out_hex.showHex()
         self.in_str = widgets.Input(3, ax, ay-3, 0)
 
     def show(self, s, color): # show stuff in both views and scroll to bottom
         self.out_asc.append(s, color)
-        self.out_hex.appendHex(s, color)
-        self.out_asc.scroll("end") # toggle off? pause?
+        if (self.out_hex.inHex == 0) \
+            or (self.out_hex.inHex == 1 and color=="text") \
+            or (self.out_hex.inHex == 2 and color=="send"):
+            self.out_hex.appendHex(s, color)
+        # toggle off? pause?
         self.out_hex.scroll("end")
+        self.out_asc.scroll("end") 
+        
         
     def message(self, s): # show message with different color only in textview
         self.out_asc.append(s, "offset")
@@ -145,6 +153,7 @@ def main(scr):
         elif c == curses.KEY_F5: gui.in_str.nextState()
         elif c == curses.KEY_F6: gui.in_str.nextBreak()
         elif c == curses.KEY_F7: gui.out_asc.nextTranslate()
+        elif c == curses.KEY_F8: gui.out_hex.nextHex()
         elif c == curses.KEY_F10: return
 
         elif c == curses.KEY_NPAGE: gui.bscroll("down")
