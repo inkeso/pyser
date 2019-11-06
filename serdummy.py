@@ -20,7 +20,7 @@ class Serial():
                   timeout=None, write_timeout=None, inter_byte_timeout=None,
                   exclusive=None, **kwargs):
         self.timeout = timeout
-        self.buffer = b"SERIAL DUMMY MODE. I'll answer with sha256 of your input.\r\n"
+        self.buffer = b"SERIAL DUMMY MODE. I'll answer with md5 and sha512 of your input.\r\n"
         self.lastfix=int(time.time())
     
     def read(self, n=0):
@@ -36,10 +36,12 @@ class Serial():
             time.sleep(self.timeout)
         return s
 
-    def inWaiting(self):
-        return len(self.buffer)
+    def inWaiting(self): return len(self.buffer)
     
-    def write(self, s):
+    def write(self, s): 
+        self.buffer += b'\0' * 16
+        self.buffer += hashlib.md5(s).digest()
+        self.buffer += b'\0' * 16
         self.buffer += hashlib.sha512(s).digest()
+        self.buffer += b'\0' * 16
 
-class SerialException(Exception): pass

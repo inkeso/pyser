@@ -56,9 +56,11 @@ PAGES = {
 }
 
 def translate(s, page="Default"):
-    """translate (utf-8) string to desired codepage visually (still returns utf-8)"""
+    """translate bytearray to desired codepage visually (returns UTF-8)"""
+    s.decode("UTF-8", "replace")
     if page == "Default":
-        for j in range(len(PAGES["Default"])): s=s.replace(chr(j), PAGES["Default"][j])
+        s = s.decode("UTF-8", "replace")
+        for j in range(len(PAGES["Default"])): s = s.replace(chr(j), PAGES["Default"][j])
         return s
     else:
-        return "".join(PAGES[page][x] for x in s.encode())
+        return "".join(PAGES[page][x] for x in s)

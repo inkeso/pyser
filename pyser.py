@@ -13,10 +13,10 @@
 # - links Klartext; nicht-Ascii-bytes >128 durch CP437, <32 durch UTF-8 darstellen
 # - rechts Hexdump. Farbig. 16 byte pro Zeile. Kodierung wie oben. Input ggf auch anders hervorheben
 
-
+import re
 import curses
-#import serial
-import serdummy as serial
+import serial
+#import serdummy as serial
 import widgets
 import translate
 # https://docs.python.org/3/howto/curses.html
@@ -121,8 +121,10 @@ class Gui():
         
         self.running = True
 
-    def show(self, s, color): # show stuff in both views and scroll to bottom
-        # translate input for ascii. always show everything there
+    def show(self, s, color): 
+        # show stuff in both views and scroll to bottom. s may be (UTF-8) str oder bytearray
+        # translate input for textview. always show everything there.
+        if type(s) is str: s = s.encode("UTF-8")
         self.out_asc.append(translate.translate(s, self.tAsc.getState()), color)
         
         # selectively untouched hexdump
@@ -190,6 +192,7 @@ def main(scr):
     while gui.running:
         gui.in_str.win.refresh()
         c = scr.getch()
+        ins = gui.tInp.getState()
 
         # TODO: Better input handling (←/→ navigate/insert), overflow
         if c == -1: # no input: poll/read serial
@@ -197,17 +200,46 @@ def main(scr):
                 rx = ser.read()
                 while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
                 if len(rx) > 0:
-                    data = "".join(chr(x) for x in rx)
-                    gui.show(data, "text")
+                    gui.show(rx, "text")
 
-        elif 31 < c < 127: # ASCII
-            gui.in_str.append(chr(c))
+        elif 31 < c < 127: # ASCII-Key pressed.
+            if ins == "Hex":
+                s = ""
+                if 0x30 <= c <= 0x39 or 0x41 <= c <= 0x46 or 0x61 <= c <= 0x66:
+                    s = chr(c).upper()
+                    if len(gui.in_str.inp.replace(" ", "")) % 2: s += " "
+            else:
+                s = chr(c)
+            gui.in_str.append(s)
 
         elif c == 10: # ENTER
+            inp = gui.in_str.inp
             end = gui.n2brk[gui.tBrk.getState()]
-            gui.show(gui.in_str.getInput(end), "send")
-            if ser: ser.write(gui.in_str.getBytes(end))
-            gui.in_str.clear()
+            if ins == "ASCII":
+                s = (inp + end)
+                gui.show(s, "send")
+                if ser: ser.write(s.encode("ASCII"))
+                gui.in_str.clear()
+            elif ins == "File":
+                try:
+                    f = open(inp, "rb")
+                    gui.message("Reading file... ")
+                    s = f.read()
+                    gui.show("<Sending file %s : %d bytes>" % (inp, len(s)), "send")
+                    if ser: ser.write(s)
+                    gui.message("\nTransmission done.\n")
+                    f.close()
+                    gui.in_str.clear()
+                except FileNotFoundError as e:
+                    gui.error("File "+inp+" not found\n")
+            elif ins == "Hex":
+                try:
+                    bafh = bytearray.fromhex(inp.upper())
+                    gui.show(bafh, "send")
+                    if ser: ser.write(bafh)
+                    gui.in_str.clear()
+                except ValueError:
+                    gui.error("Invalid Hex-string\n")
 
         elif c == curses.KEY_BACKSPACE: gui.in_str.backspace()
         elif c == curses.KEY_UP: gui.in_str.goHistory(1)

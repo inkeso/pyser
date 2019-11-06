@@ -64,7 +64,7 @@ class TxtWin():
             self.pad.addstr(" *** TRUNCATED *** ", COLOR["error"])
 
     def appendHex(self, s, color="text"):
-        for c in s.encode():
+        for c in s:
             if self.hexoffset % 16 == 0:
                 self.append(("\n" if self.hexoffset > 0 else "") +"%08X  " % self.hexoffset, "offset")
             cy, cx = self.pad.getyx()
@@ -133,10 +133,10 @@ class Input():
         else:
             self.win.addstr(1, 1, self.inp[-sw:])
 
-    def getInput(self, end=""):
-        return self.inp + end
-
-    def getBytes(self, end=""):
-        # obacht bei höherwertigem UTF-8!
-        return bytes([ord(x) for x in self.getInput() + end])
+    #def getInput(self, end=""):
+    #    return self.inp + end
+    #
+    #def getBytes(self, end=""):
+    #    # Hm, eig. terminalabhängig
+    #    return (self.getInput() + end).encode("UTF-8")
 
