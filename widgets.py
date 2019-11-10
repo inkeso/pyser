@@ -77,6 +77,7 @@ class TxtWin():
 
 class Input():
     """Our simple Input-Widget"""
+    # TODO: Better input handling (←/→ navigate/insert)?
 
     def __init__(self, h, w, y, x):
         self.coords = (h, w, y, x)
@@ -99,8 +100,11 @@ class Input():
         self.shist = -1
         self.redraw()
 
-    def append(self, c):
+    def append(self, c, hexmode=False):
         # boundry-check, "scroll" (well, trim left)
+        if hexmode:
+            c = "".join(filter(lambda h: h in '01234567890ABCDEF', c.upper()))
+            if c and len(self.inp.replace(" ", "")) % 2: c += " "
         self.inp += c
         sw = self.coords[1]-3
         if len(self.inp) < sw:
@@ -121,14 +125,16 @@ class Input():
             self.inp = self.history[self.shist]
         self.redraw()
 
-    def backspace(self):
+    def backspace(self, hexmode=False):
         sw = self.coords[1]-3
-        self.inp = self.inp[:-1]
+        gc = 1
+        if hexmode and self.inp[-1:] == " ": gc = 2
+        self.inp = self.inp[:-gc]
         if len(self.inp) < sw:
             cy, cx = self.win.getyx()
-            cx -= 1
+            cx -= gc
             if cx < 1: cx = 1
-            self.win.addstr(cy, cx," ")
+            self.win.addstr(cy, cx, "  ")
             self.win.move(cy, cx)
         else:
             self.win.addstr(1, 1, self.inp[-sw:])

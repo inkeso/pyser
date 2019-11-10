@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Full featured serial console but with a fancy ncurses-TUI.
+# Full featured serial console like cuteterm, but with a fancy ncurses-TUI.
 
-# Funktionen für Eingabe:
-# - Byteweise sofort abschicken. ASCII 32-127 per Tastatur, anderes irgendwie anders....?
-# - Linebuffered mit GNU readline inkl. History. Zeilenende umschaltbar CR, CRLF, LF oder nix.
-# - Optional gesendete Befehle ins Log zu schreiben (andersfarbig)
-# - Input-History!
-# Funktionen für Ausgabe:
-# - Optional unverändert in Datei schreiben (selbes für eingabe)
-# - links Klartext; nicht-Ascii-bytes >128 durch CP437, <32 durch UTF-8 darstellen
-# - rechts Hexdump. Farbig. 16 byte pro Zeile. Kodierung wie oben. Input ggf auch anders hervorheben
+# TODO:
+# - Parameter via getopt
+# - In/Out in Datei schreiben (kombiniert, einzeln)
+# - doku/readme
 
 import re
 import curses
@@ -22,10 +17,9 @@ import translate
 # https://docs.python.org/3/howto/curses.html
 # https://docs.python.org/3/library/curses.html
 
-# CONFIG (TODO: getopts)
 DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
 BAUD = 9600
-widgets.TxtWin.PADSIZE = 200 # number of lines to keep in scrollback-pad
+widgets.TxtWin.PADSIZE = 2000 # number of lines to keep in scrollback-pad
 RECDUMP = "/dev/null" # record Received bytes to a file
 SNDDUMP = "/dev/null" # record Sent bytes to a file
 
@@ -79,10 +73,11 @@ class Gui():
         F1 : Show this help
         F2 : Pause/Unpause transmission                  [TODO]
         F4 : Clear Views / reset counter
-        F5 : Toggle Input mode (ASCII/Hex/File)          [TODO]
-        F6 : Toggle CR/LF after input on send
-        F7 : Toggle Translation (in textview)
+        F5 : Toggle Input mode (Text/Hex/File)
+        F6 : Toggle CR/LF after input on send (in Text-Mode)
+        F7 : Toggle Codepage-translation (textview)
         F8 : Toggle display of input / output in hexdump
+        
         F10: Quit
 
         PgUp/PgDn: Scroll ⅓ Page up/down
@@ -107,10 +102,10 @@ class Gui():
         }
         
         as_s = self.out_asc.coords[1]
-        self.tInp = Toggle(self.in_str.win,  2, 3,       "F5", ["ASCII", "Hex", "File"],      "Mode")
-        self.tBrk = Toggle(self.in_str.win,  2, 22,      "F6", list(self.n2brk.keys()),       "Append")
-        self.tAsc = Toggle(self.out_asc.win, 0, as_s-31, "F7", list(translate.PAGES.keys()),  "Codepage")
-        self.tHex = Toggle(self.out_hex.win, 0, 3,       "F8", ["Both", "Receive", "Send"],   "Show Stream")
+        self.tInp = Toggle(self.in_str.win,  2, 3,       "F5", ["Text", "Hex", "File"],      "Mode")
+        self.tBrk = Toggle(self.in_str.win,  2, 22,      "F6", list(self.n2brk.keys()),      "Append")
+        self.tAsc = Toggle(self.out_asc.win, 0, as_s-31, "F7", list(translate.PAGES.keys()), "Codepage")
+        self.tHex = Toggle(self.out_hex.win, 0, 3,       "F8", ["Both", "Receive", "Send"],  "Show Stream")
 
         self.toggles = {
             curses.KEY_F5: self.tInp,
@@ -124,13 +119,15 @@ class Gui():
     def show(self, s, color): 
         # show stuff in both views and scroll to bottom. s may be (UTF-8) str oder bytearray
         # translate input for textview. always show everything there.
-        if type(s) is str: s = s.encode("UTF-8")
-        self.out_asc.append(translate.translate(s, self.tAsc.getState()), color)
+        #su = s.encode("UTF-8") if type(s) is str else s
+        su = s.encode(self.tAsc.getState(), "ignore") if type(s) is str else s
+        self.out_asc.append(translate.translate(su, self.tAsc.getState()), color)
         
         # selectively untouched hexdump
         th = self.tHex.getState()
         if th == "Both" or th+color in ("Receivetext", "Sendsend"):
-            self.out_hex.appendHex(s, color)
+            
+            self.out_hex.appendHex(su, color)
         self.bscroll("end")
 
     def message(self, s): # show message with different color only in textview
@@ -155,6 +152,7 @@ class Gui():
         self.running = False
 
 def main(scr):
+    #### INIT CURSES, STYLES, GUI ####
     scr.clear()
     scr.nodelay(True)
     scr.getch()
@@ -177,10 +175,9 @@ def main(scr):
         "hint"   : curses.color_pair(6) + curses.A_ITALIC,
         "state"  : curses.color_pair(6)
     }
-
     gui = Gui()
 
-    # Prepare Serial Port
+    #### INIT SERIAL PORT ####
     try:
         ser = serial.Serial(DEVICE, BAUD, timeout=.05)
         gui.message("Connected to %s (%d baud)\n\n" % (DEVICE, BAUD))
@@ -189,36 +186,40 @@ def main(scr):
         gui.error("CONNECTION FAILED\n\n")
         gui.message(str(e))
 
-    while gui.running:
+    #### MAIN LOOP ####
+    while gui.running: 
         gui.in_str.win.refresh()
         c = scr.getch()
         ins = gui.tInp.getState()
 
-        # TODO: Better input handling (←/→ navigate/insert), overflow
-        if c == -1: # no input: poll/read serial
-            if ser:
-                rx = ser.read()
-                while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
-                if len(rx) > 0:
-                    gui.show(rx, "text")
+        if c == -1 and ser: # no input: poll/read serial
+            rx = ser.read()
+            while ser.inWaiting() > 0: rx += ser.read(ser.inWaiting())
+            if len(rx) > 0:
+                gui.show(rx, "text")
 
-        elif 31 < c < 127: # ASCII-Key pressed.
-            if ins == "Hex":
-                s = ""
-                if 0x30 <= c <= 0x39 or 0x41 <= c <= 0x46 or 0x61 <= c <= 0x66:
-                    s = chr(c).upper()
-                    if len(gui.in_str.inp.replace(" ", "")) % 2: s += " "
-            else:
-                s = chr(c)
-            gui.in_str.append(s)
+        elif 31 < c < 127: # ASCII
+            gui.in_str.append(chr(c), ins=="Hex")
+
+        elif 0b11000000 <= c <= 0b11110000 and ins != "Hex": # UTF-8 multibyte
+            cp = bytearray([c])
+            c = scr.getch()
+            while 0b10000000 <= c <= 0b11000000:
+                cp.append(c)
+                c = scr.getch()
+            try:
+                gui.in_str.append(cp.decode("utf-8"))
+            except:
+                gui.message("Invalid Input: "+str(cp)+"\n")
 
         elif c == 10: # ENTER
             inp = gui.in_str.inp
             end = gui.n2brk[gui.tBrk.getState()]
-            if ins == "ASCII":
+            if ins == "Text":
                 s = (inp + end)
                 gui.show(s, "send")
-                if ser: ser.write(s.encode("ASCII"))
+                # trancode to current CP
+                if ser: ser.write(s.encode(gui.tAsc.getState(), "ignore"))
                 gui.in_str.clear()
             elif ins == "File":
                 try:
@@ -241,7 +242,7 @@ def main(scr):
                 except ValueError:
                     gui.error("Invalid Hex-string\n")
 
-        elif c == curses.KEY_BACKSPACE: gui.in_str.backspace()
+        elif c == curses.KEY_BACKSPACE: gui.in_str.backspace(ins=="Hex")
         elif c == curses.KEY_UP: gui.in_str.goHistory(1)
         elif c == curses.KEY_DOWN: gui.in_str.goHistory(-1)
         
@@ -252,6 +253,9 @@ def main(scr):
 
         elif c in gui.keys: gui.keys[c].action()
         elif c in gui.toggles: gui.toggles[c].nextState()
+        
+        #else: gui.message("Unmapped key %d\n" % c)
+        
 
 curses.wrapper(main)
 

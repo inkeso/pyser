@@ -20,14 +20,15 @@ indent_mode=2
 [project]
 name=PySer
 base_path=/home/iks/Workspace/pyser/
+description=
 
 [long line marker]
 long_line_behaviour=1
 long_line_column=80
 
 [files]
-current_page=1
-FILE_NAME_0=2429;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fiksrandr%2Flightcontrol.py;0;4
-FILE_NAME_1=3516;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Fpyser.py;0;4
-FILE_NAME_2=6817;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Fwidgets.py;0;4
-FILE_NAME_3=671;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Ftranslate.py;0;4
+current_page=0
+FILE_NAME_0=523;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Fpyser.py;0;4
+FILE_NAME_1=2778;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Fwidgets.py;0;4
+FILE_NAME_2=4706;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Ftranslate.py;0;4
+FILE_NAME_3=1759;Python;0;EUTF-8;0;1;0;%2Fhome%2Fiks%2FWorkspace%2Fpyser%2Fserdummy.py;0;4

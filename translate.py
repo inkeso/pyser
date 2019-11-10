@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 PAGES = {
-    "Default": [ # only escape low bytes, except LF. Remove CR.
+    "UTF-8": [ # only escape low bytes, except LF. Remove CR. Default.
         "^@","^A","^B","^C","^D","^E","^F","^G","^H","^I","\n","^K","^L","","^N","^O",
         "^P","^Q","^R","^S","^T","^U","^V","^W","^X","^Y","^Z","^[","^\\","^]","^^","^_"
     ],
@@ -15,10 +15,10 @@ PAGES = {
     "ISO 8859-15": [
         "<NUL>","<SOH>","<STX>","<ETX>","<EOT>","<ENQ>","<ACK>","<BEL>","<BS>","<HT>","\n","<VT>","<FF>","<CR>","<SO>","<SI>",
         "<DLE>","<DC1>","<DC2>","<DC3>","<DC4>","<NAK>","<SYN>","<ETB>","<CAN>","<EM>","<SUB>","<ESC>","<FS>","<GS>","<RS>","<US>"
-        ] + [chr(x) for x in range(32,127)] + [
+        ] + [chr(x) for x in range(32,127)] + ["<DEL>",
         "<PAD>", "<HOP>", "<BPH>", "<NBH>", "<IND>", "<NEL>", "<SSA>", "<ESA>", "<HTS>", "<HTJ>", "<VTS>", "<PLD>", "<PLU>", "<RI>", "<SS2>", "<SS3>",
         "<DCS>", "<PU1>", "<PU2>", "<STS>", "<CCH>", "<MW>", "<SPA>", "<EPA>", "<SOS>", "<SGCI>", "<SCI>", "<CSI>", "<ST>", "<OSC>", "<PM>", "<APC>",
-        " ", "¡", "¢", "£", "€", "¥", "Š", "§", "š", "©", "ª", "«", "¬", "SHY", "®", "¯",
+        " ", "¡", "¢", "£", "€", "¥", "Š", "§", "š", "©", "ª", "«", "¬", "<SHY>", "®", "¯",
         "°", "±", "²", "³", "Ž", "µ", "¶", "·", "ž", "¹", "º", "»", "Œ", "œ", "Ÿ", "¿",
         "À", "Á", "Â", "Ã", "Ä", "Å", "Æ", "Ç", "È", "É", "Ê", "Ë", "Ì", "Í", "Î", "Ï",
         "Ð", "Ñ", "Ò", "Ó", "Ô", "Õ", "Ö", "×", "Ø", "Ù", "Ú", "Û", "Ü", "Ý", "Þ", "ß",
@@ -26,7 +26,7 @@ PAGES = {
         "ð", "ñ", "ò", "ó", "ô", "õ", "ö", "÷", "ø", "ù", "ú", "û", "ü", "ý", "þ", "ÿ"
     ], 
 
-    "CP437 (EN)": [
+    "CP437": [
         " ","☺", "☻", "♥", "♦", "♣", "♠", "•", "◘", "○", "\n", "♂", "♀", "♪", "♫", "☼",
         "►", "◄", "↕", "‼", "¶", "§", "▬", "↨", "↑", "↓", "→", "←", "∟", "↔", "▲", "▼"
         ] + [chr(x) for x in range(32,127)] + [ "⌂",
@@ -40,7 +40,7 @@ PAGES = {
         "≡", "±", "≥", "≤", "⌠", "⌡", "÷", "≈", "°", "∙", "·", "√", "ⁿ", "²", "■", " " 
     ],
     
-    "CP850 (DE)": [
+    "CP850": [
         " ","☺", "☻", "♥", "♦", "♣", "♠", "•", "◘", "○", "\n", "♂", "♀", "♪", "♫", "☼",
         "►", "◄", "↕", "‼", "¶", "§", "▬", "↨", "↑", "↓", "→", "←", "∟", "↔", "▲", "▼"
         ] + [chr(x) for x in range(32,127)] + [ "⌂",
@@ -55,12 +55,11 @@ PAGES = {
     ]
 }
 
-def translate(s, page="Default"):
+def translate(s, page="UTF-8"):
     """translate bytearray to desired codepage visually (returns UTF-8)"""
-    s.decode("UTF-8", "replace")
-    if page == "Default":
+    if page == "UTF-8":
         s = s.decode("UTF-8", "replace")
-        for j in range(len(PAGES["Default"])): s = s.replace(chr(j), PAGES["Default"][j])
+        for j in range(len(PAGES["UTF-8"])): s = s.replace(chr(j), PAGES["UTF-8"][j])
         return s
     else:
         return "".join(PAGES[page][x] for x in s)
