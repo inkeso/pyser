@@ -17,8 +17,7 @@ words = ["adipisicing", "aliqua", "amet", "anim", "aute", "cillum", "commodo",
 class Serial():
     def __init__ (self, port=None, baudrate=9600, bytesize=8, parity='N', stopbits=1,
                   xonxoff=False, rtscts=False, dsrdtr=False,
-                  timeout=None, write_timeout=None, inter_byte_timeout=None,
-                  exclusive=None, **kwargs):
+                  timeout=None, write_timeout=None, inter_byte_timeout=None, **kwargs):
         self.timeout = timeout
         self.buffer = b"SERIAL DUMMY MODE. I'll answer with md5 and sha512 of your input.\r\n"
         self.lastfix=int(time.time())
