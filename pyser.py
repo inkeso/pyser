@@ -39,6 +39,19 @@ RECDUMP = None # record received bytes to a file
 SNDDUMP = None # record sent bytes to a file
 BTHDUMP = None # record both in one file
 
+def launch():
+    #GETOPT ...
+    
+    
+    # Start!
+    try:
+        curses.wrapper(tuimain, Iserial())
+    except Exception as e:
+        print("ERROR: "+str(e))
+        try: eno = e.errno
+        except: eno = 100
+        return eno
+
 class Iserial():
     """wrap serial read and write functions for logging"""
     def __init__(self):
@@ -53,9 +66,8 @@ class Iserial():
     def write(self,s):
         self.ser.write(s)
         # TODO: write to file
-    
 
-def main(scr):
+def tuimain(scr, ser):
     #### INIT CURSES, STYLES, GUI ####
     scr.clear()
     scr.nodelay(True)
@@ -153,17 +165,4 @@ def main(scr):
         
         #else: gui.message("Unmapped key %d\n" % c)
 
-
-### STARTUP : Parse options, init serial, start GUI. ###
-
-try:
-    ser = Iserial()
-except serial.SerialException as e:
-    print("CONNECTION FAILED: "+str(e))
-    sys.exit(2)
-
-try:
-    curses.wrapper(main)
-except AssertionError as e:
-    print("ERROR: "+str(e))
-    sys.exit(1)
+if __name__ == '__main__': sys.exit(launch())
