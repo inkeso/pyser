@@ -7,7 +7,6 @@
 # - Parameter via getopt
 # - write input/output to file (seperate and/or combined)
 # - documentation/readme
-# - dynamic Hexview down to 40 columns incl. border. It's tight, but may work.
 # - Better resize (don't clear/repopulate... this will be interesting)
 
 # https://docs.python.org/3/howto/curses.html
@@ -16,13 +15,13 @@
 
 import sys
 import curses
-import serial
-#import serdummy as serial
+#import serial
+import serdummy as serial
 import finput
 import widgets
 import translate
 
-DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0"
+DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0XXX"
 BAUD = 9600
 # port – Device name or None.
 # baudrate=9600 (int) – Baud rate such as 9600 or 115200 etc.
@@ -34,10 +33,12 @@ BAUD = 9600
 # rtscts=False (bool) – Enable hardware (RTS/CTS) flow control.
 # dsrdtr=False (bool) – Enable hardware (DSR/DTR) flow control.
 # exclusive=True (bool) – Set exclusive access mode (POSIX only). A port cannot be opened in exclusive access mode if it is already open in exclusive access mode.
-widgets.TxtWin.PADSIZE = 2000 # number of lines to keep in scrollback-pad
+widgets.TxtWin.PADSIZE = 2000 # number of lines to keep in scrollback-pad # MAX: 32767
 RECDUMP = None # record received bytes to a file
 SNDDUMP = None # record sent bytes to a file
 BTHDUMP = None # record both in one file
+
+MAXFILEHEXDUMP = 4096 # when uploading a file, only files smaller then this are displayed in the hexdump. for larger files, a placeholder is shown. # MAX: 16*PADSIZE
 
 def launch():
     #GETOPT ...
@@ -74,7 +75,7 @@ def tuimain(scr, ser):
     scr.getch()
 
     # Styles (see below)
-    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLUE)  # header
+    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)  # header/border
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Received data
     curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)   # Sent data
     curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # ERROR
@@ -133,6 +134,10 @@ def tuimain(scr, ser):
                 if f[0]:
                     s = f[0].read()
                     if ser: ser.write(s)
+                    if len(s) <= MAXFILEHEXDUMP:
+                        gui.hexdump(s, "send")
+                    else: # don't relay dump it
+                        gui.hexdump("[BINARY DATA %d BYTES]".encode("ASCII") % len(s), "send")
                     gui.message("Transmission done.\n")
                     f[0].close()
                 gui.in_str.clear()

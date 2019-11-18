@@ -66,6 +66,7 @@ def tryget(s):
         fils.sort(key=lambda x: x[1].upper())
         res = "\n\n----- DIRECTORY %s -----\n\n" % s
         res += "\n".join("%12s %s" % x for x in dirs)
+        res += "\n"
         res += "\n".join("%12s %s" % x for x in fils)
         return (None, res, True)
     

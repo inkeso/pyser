@@ -13,11 +13,18 @@ class TxtWin():
 
     PADSIZE = 2000
 
-    def __init__(self, title, h, w, y, x):
+    def __init__(self, title, h, w, y, x, merge=False):
+        assert w >= 40, "Widget must be at least 40 columns wide"
+        assert h >= 3, "Widget must be at least 3 lines high"
         self.coords = (h,w,y,x)
         self.win = curses.newwin(h,w,y,x)
-        self.win.border()
-        if title: self.win.addstr(0, 3, " %s " % title, COLOR["header"])
+        self.win.attrset(COLOR["header"])
+        if merge:
+            self.win.border(0,0,0,0,curses.ACS_TTEE,0,curses.ACS_BTEE,0)
+        else:
+            self.win.border()
+        if title: self.win.addstr(0, 3, " %s " % title)
+        self.win.attrset(0)
         self.win.refresh()
         self.scrollpos = 0
         self.hexoffset = 0
@@ -64,15 +71,30 @@ class TxtWin():
             self.pad.addstr(" *** TRUNCATED *** ", COLOR["error"])
 
     def appendHex(self, s, color="text"):
+        """render hexdump, consider horizontal space:
+        cols = self.coords[1] - 2 # substract border
+        [38 cols; min]|0000 0001020304050607 08090A0B0C0D0E0F|
+        [40 cols     ]|000000 0001020304050607 08090A0B0C0D0E0F|
+        [42 cols     ]|00000000 0001020304050607 08090A0B0C0D0E0F|
+        [58 cols     ]|00000000  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F|
+        [78 cols; max]|00000000  00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ........ ........ |
+        """
+        cols = self.coords[1] - 3 # available width without border and one space to the left
+        offsetwidth = min(8, cols - 34)
+        hexwidth = 2 if cols < 58 else 3
         for c in s:
             if self.hexoffset % 16 == 0:
-                self.append(("\n" if self.hexoffset > 0 else "") +"%08X  " % self.hexoffset, "offset")
+                brk = "\n" if self.hexoffset > 0 else ""
+                offstr = "%%0%dX" % offsetwidth % self.hexoffset
+                self.append(brk + offstr, "offset")
             cy, cx = self.pad.getyx()
             roff = self.hexoffset % 16
-            self.pad.move(cy, 10 + roff * 3)
+            
+            self.pad.move(cy, offsetwidth + hexwidth - (roff < 8) + roff * hexwidth)
             self.pad.addstr("%02X" % c, COLOR[color])
-            self.pad.move(cy, 60 + roff)
-            self.pad.addstr(chr(c) if 31 < c < 127 else "·", COLOR[color])
+            if cols >= 78:
+                self.pad.move(cy, 60 + roff)
+                self.pad.addstr(chr(c) if 31 < c < 127 else "·", COLOR[color])
             self.hexoffset += 1
 
 class Input():
@@ -80,9 +102,13 @@ class Input():
     # TODO: Better input handling (←/→ navigate/insert)?
 
     def __init__(self, h, w, y, x):
+        assert w >= 10, "Widget must be at least 10 columns wide"
+        assert h >= 3, "Widget must be at least 3 lines high"
         self.coords = (h, w, y, x)
         self.win = curses.newwin(h, w, y, x)
+        self.win.attrset(COLOR["header"])
         self.win.border()
+        self.win.attrset(0)
         self.inp = ""
         self.history = []
         self.shist = -1
@@ -209,8 +235,14 @@ class Gui():
         ay, ax = curses.LINES, curses.COLS
         assert ay >= 8, "Terminal must be at least 8 lines high"
         assert ax >= 80, "Terminal must be at least 80 lines wide"
-        self.out_asc = TxtWin("", ay-3, ax//2, 0, 0)
-        self.out_hex = TxtWin("Hexdump", ay-3, ax//2, 0, ax//2)
+        
+        # calculate window-sizes (width).
+        hw = min(ax//2, 80)
+        tw = ax-hw
+        
+        self.out_asc = TxtWin("", ay-3, tw, 0, 0)
+        self.out_hex = TxtWin("", ay-3, hw+1, 0, tw-1, merge=True)
+        
         self.in_str = Input(3, ax, ay-3, 0)
         self.n2brk = {"None":"", "LF":"\n", "CR": "\r", "CRLF": "\r\n", "0x00": "\0"}
 
@@ -244,12 +276,16 @@ class Gui():
         su = s.encode(self.tAsc.getState(), "ignore") if type(s) is str else s
         self.out_asc.append(translate.translate(su, self.tAsc.getState()), color)
         
+        self.hexdump(su, color)
+        self.bscroll("end")
+    
+    def hexdump(self, s, color):
         # selectively untouched hexdump
         th = self.tHex.getState()
         if th == "Both" or th+color in ("Receivetext", "Sendsend"):
-            
-            self.out_hex.appendHex(su, color)
-        self.bscroll("end")
+            self.out_hex.appendHex(s, color)
+        self.out_hex.scroll("end")
+
 
     def message(self, s): # show message with different color only in textview
         self.out_asc.append(s, "offset")
