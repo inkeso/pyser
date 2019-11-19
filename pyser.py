@@ -27,7 +27,7 @@ def launch():
         <P>-parity: Enable parity checking. Possible values: 
                     N (None), E (Even), O (Odd) M (Mark), S (Space)
         <S>-stopbits: Number of stop bits. Possible values: 1, 1.5, 2"""],
-        ["-t", "--timeout", 0.05, "Set a read timeout value"],
+        ["-t", "--timeout", 0.05, "Set a read timeout value."],
         ["-x", "--xonxoff", False, "Enable software flow control"],
         ["-c", "--rtscts", False, "Enable hardware (RTS/CTS) flow control"],
         ["-d", "--dsrdtr", False, "Enable hardware (DSR/DTR) flow control"],
@@ -151,7 +151,7 @@ def tuimain(scr, ser, options):
     gui.message("Connected to %s (%d baud, %s)\n\n" % (options.port, options.baudrate, options.param))
 
     #### MAIN LOOP ####
-    while gui.running: 
+    while gui.running:
         gui.in_str.win.refresh()
         c = scr.getch()
         ins = gui.tInp.getState()

@@ -20,9 +20,9 @@ class TxtWin():
         self.win = curses.newwin(h,w,y,x)
         self.win.attrset(COLOR["header"])
         if merge:
-            self.win.border(0,0,0,0,curses.ACS_TTEE,0,curses.ACS_BTEE,0)
+            self.win.border(0,0,0,0,curses.ACS_TTEE,0,curses.ACS_BTEE,curses.ACS_RTEE)
         else:
-            self.win.border()
+            self.win.border(0,0,0,0,0,0,curses.ACS_LTEE,0)
         if title: self.win.addstr(0, 3, " %s " % title)
         self.win.attrset(0)
         self.win.refresh()
@@ -115,8 +115,9 @@ class Input():
         self.redraw()
 
     def redraw(self):
-        self.win.addstr(1,1, " "*(self.coords[1]-2))
-        self.win.addstr(1,1, self.inp)
+        self.win.addstr(1,1, "> ", COLOR["send"])
+        self.win.addstr(1,3, " "*(self.coords[1]-4))
+        self.win.addstr(1,3, self.inp)
         self.win.refresh()
 
     def clear(self):
@@ -132,11 +133,11 @@ class Input():
             c = "".join(filter(lambda h: h in '01234567890ABCDEF', c.upper()))
             if c and len(self.inp.replace(" ", "")) % 2: c += " "
         self.inp += c
-        sw = self.coords[1]-3
+        sw = self.coords[1]-5
         if len(self.inp) < sw:
             self.win.addstr(c)
         else:
-            self.win.addstr(1,1, self.inp[-sw:])
+            self.win.addstr(1,3, self.inp[-sw:])
         self.win.refresh()
 
     def goHistory(self, delta=1):
@@ -152,7 +153,7 @@ class Input():
         self.redraw()
 
     def backspace(self, hexmode=False):
-        sw = self.coords[1]-3
+        sw = self.coords[1]-5
         gc = 1
         if hexmode and self.inp[-1:] == " ": gc = 2
         self.inp = self.inp[:-gc]
@@ -163,7 +164,7 @@ class Input():
             self.win.addstr(cy, cx, "  ")
             self.win.move(cy, cx)
         else:
-            self.win.addstr(1, 1, self.inp[-sw:])
+            self.win.addstr(1, 3, self.inp[-sw:])
 
 class Toggle():
     def __init__(self, win, y, x, key, choices, hint=None, current=0):
@@ -240,24 +241,25 @@ class Gui():
         hw = min(ax//2, 80)
         tw = ax-hw
         
-        self.out_asc = TxtWin("", ay-3, tw, 0, 0)
-        self.out_hex = TxtWin("", ay-3, hw+1, 0, tw-1, merge=True)
-        
         self.in_str = Input(3, ax, ay-3, 0)
         self.n2brk = {"None":"", "LF":"\n", "CR": "\r", "CRLF": "\r\n", "0x00": "\0"}
+
+        self.out_asc = TxtWin("", ay-2, tw, 0, 0)
+        self.out_hex = TxtWin("", ay-2, hw+1, 0, tw-1, merge=True)
+        
 
         in_w = self.in_str.coords[1]
         hx_s = self.out_hex.coords
         self.keys = {
-            curses.KEY_F1:  Key(self.in_str.win,  2,         in_w-24,    "F1",  "Help",         lambda: self.message(self.HELP)),
-            curses.KEY_F4:  Key(self.out_hex.win, hx_s[0]-1, hx_s[1]-20, "F4",  "Clear Output", self.emptyView),
-            curses.KEY_F10: Key(self.in_str.win,  2,         in_w-13,    "F10", "Quit",         self.quit)
+            curses.KEY_F1:  Key(self.in_str.win, 2,  in_w-35, "F1",  "Help",  lambda: self.message(self.HELP)),
+            curses.KEY_F4:  Key(self.in_str.win, 2,  in_w-24, "F4",  "Clear", self.emptyView),
+            curses.KEY_F10: Key(self.in_str.win, 2,  in_w-12, "F10", "Quit",  self.quit)
         }
         
         as_s = self.out_asc.coords[1]
-        self.tInp = Toggle(self.in_str.win,  2, 3,       "F5", ["Text", "Hex", "File"],      "Mode")
-        self.tBrk = Toggle(self.in_str.win,  2, 22,      "F6", list(self.n2brk.keys()),      "Append")
-        self.tAsc = Toggle(self.out_asc.win, 0, as_s-31, "F7", list(translate.PAGES.keys()), "Codepage")
+        self.tInp = Toggle(self.in_str.win,  2, 2,       "F5", ["Text", "Hex", "File"],      "Mode")
+        self.tBrk = Toggle(self.in_str.win,  2, 20,      "F6", list(self.n2brk.keys()),      "Line-end")
+        self.tAsc = Toggle(self.out_asc.win, 0, as_s-30, "F7", list(translate.PAGES.keys()), "Codepage")
         self.tHex = Toggle(self.out_hex.win, 0, 3,       "F8", ["Both", "Receive", "Send"],  "Show Stream")
 
         self.toggles = {
