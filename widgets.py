@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import curses
+import textwrap
 import translate
 
 COLOR = {"header" : 0, "text" : 0, "send" : 0, "error": 0, "offset" : 0, "key":0, "hint":0, "state": 0}
@@ -89,7 +90,7 @@ class TxtWin():
                 self.append(brk + offstr, "offset")
             cy, cx = self.pad.getyx()
             roff = self.hexoffset % 16
-            
+
             self.pad.move(cy, offsetwidth + hexwidth - (roff < 8) + roff * hexwidth)
             self.pad.addstr("%02X" % c, COLOR[color])
             if cols >= 78:
@@ -160,7 +161,7 @@ class Input():
         if len(self.inp) < sw:
             cy, cx = self.win.getyx()
             cx -= gc
-            if cx < 1: cx = 1
+            if cx < 3: cx = 3
             self.win.addstr(cy, cx, "  ")
             self.win.move(cy, cx)
         else:
@@ -177,14 +178,14 @@ class Toggle():
         self.smaxlen = max(map(len, self.choices))
         try: self.display()
         except: pass
-        
+
     def nextState(self):
         self.current = (self.current + 1) % len(self.choices)
         self.display()
-        
+
     def maxLen(self):
         return max(map(len, s))
-        
+
     def display(self):
         cy, cx = self.win.getyx()
         self.win.addstr(self.y, self.x, " %s " % self.key, COLOR["key"])
@@ -192,7 +193,7 @@ class Toggle():
         self.win.addstr(self.getState().center(self.smaxlen)+" ", COLOR["state"])
         self.win.move(cy, cx)
         self.win.refresh()
-    
+
     def getState(self):
         return self.choices[self.current]
 
@@ -205,7 +206,7 @@ class Key():
         self.action = action
         try: self.display()
         except: pass
-        
+
 
     def display(self):
         cy, cx = self.win.getyx()
@@ -215,47 +216,73 @@ class Key():
         self.win.refresh()
 
 class Gui():
-    HELP = """
-        F1 : Show this help
-        F2 : Pause/Unpause transmission                  [TODO]
-        F4 : Clear Views / reset counter
-        F5 : Toggle Input mode (Text/Hex/File)
-        F6 : Toggle CR/LF after input on send (in Text-Mode)
-        F7 : Toggle Codepage-translation (textview)
-        F8 : Toggle display of input / output in hexdump
-        
-        F10: Quit
+    HELP = ["""Keys\n====
 
-        PgUp/PgDn: Scroll ⅓ Page up/down
-        Home/End : Scroll to top or bottom
+F1: Show this help
+F2: Pause/Unpause transmission [TODO]
+F4: Clear views / reset counter
+F5: Select Input mode (See below)
+F6: Append Line-ending on send (Text)
+F7: Switch codepage for Textview
+F8: Toggle display in/out in hexdump
 
-        ↓/↑ : go through input-history (repeat command)
-    \n"""
+F10: Quit
+
+PgUp/PgDn: Scroll ⅓ Page up/down
+Home/End : Scroll to top or bottom
+
+↓/↑ : go through input-history
+
+Input Modes
+===========
+
+Text:
+""","""
+Input text with keyboard. Hit Enter to send. It's that easy! Characters above
+ASCII will be translated to to selected codepage. If a special character can
+not be translated, it is omited (check hexdump). If a Line-end (F6) is
+selected, it will be appended to the sent string.
+""","""
+Hex:
+""","""
+send binary data: input hex-bytes to be sent (on enter). Only accepts 0-9 a-f.
+Each byte must be 2 chars.
+""","""
+File:
+""","""
+send a file (binary). In this mode, you can input a valid file- or dir- name.
+In case of a directory, it's content is displayed and nothing is sent to the
+serial port. E.g.: use "." to view the content of the current dir. If it's a
+valid, readable file, it's content is sent unaltered. The content of the file
+is displayed in the hexdump as well, if the file is small enough (default:
+4kb). Otherwise a placeholder is shown. The input is taken literally, so you
+don't have to escape spaces in file- names or something.
+""","""\n"""]
 
     def __init__(self):
         ay, ax = curses.LINES, curses.COLS
         assert ay >= 8, "Terminal must be at least 8 lines high"
         assert ax >= 80, "Terminal must be at least 80 lines wide"
-        
+
         # calculate window-sizes (width).
         hw = min(ax//2, 80)
         tw = ax-hw
-        
+
         self.in_str = Input(3, ax, ay-3, 0)
         self.n2brk = {"None":"", "LF":"\n", "CR": "\r", "CRLF": "\r\n", "0x00": "\0"}
 
         self.out_asc = TxtWin("", ay-2, tw, 0, 0)
         self.out_hex = TxtWin("", ay-2, hw+1, 0, tw-1, merge=True)
-        
+
 
         in_w = self.in_str.coords[1]
         hx_s = self.out_hex.coords
         self.keys = {
-            curses.KEY_F1:  Key(self.in_str.win, 2,  in_w-35, "F1",  "Help",  lambda: self.message(self.HELP)),
+            curses.KEY_F1:  Key(self.in_str.win, 2,  in_w-35, "F1",  "Help",  self.help),
             curses.KEY_F4:  Key(self.in_str.win, 2,  in_w-24, "F4",  "Clear", self.emptyView),
             curses.KEY_F10: Key(self.in_str.win, 2,  in_w-12, "F10", "Quit",  self.quit)
         }
-        
+
         as_s = self.out_asc.coords[1]
         self.tInp = Toggle(self.in_str.win,  2, 2,       "F5", ["Text", "Hex", "File"],      "Mode")
         self.tBrk = Toggle(self.in_str.win,  2, 20,      "F6", list(self.n2brk.keys()),      "Line-end")
@@ -268,19 +295,33 @@ class Gui():
             curses.KEY_F7: self.tAsc,
             curses.KEY_F8: self.tHex,
         }
-        
+
         self.running = True
 
-    def show(self, s, color): 
+    def help(self):
+        def wrop(s):
+            return textwrap.fill(s, 
+                width=self.out_asc.coords[1] - 3, 
+                initial_indent = "",
+                subsequent_indent = " ")
+        pleh = "".join(self.HELP[i*2] + wrop(self.HELP[i*2+1]) for i in range(3))
+        self.error("\n" + "-"*(self.out_asc.coords[1]-2))
+        self.message(pleh)
+        self.error("\n" + "-"*(self.out_asc.coords[1]-2))
+        self.out_asc.scrollpos -= len(pleh.split("\n")) - self.out_asc.coords[0] + 5
+        self.out_asc.scroll("none")
+        
+
+    def show(self, s, color):
         # show stuff in both views and scroll to bottom. s may be (UTF-8) str oder bytearray
         # translate input for textview. always show everything there.
         #su = s.encode("UTF-8") if type(s) is str else s
         su = s.encode(self.tAsc.getState(), "ignore") if type(s) is str else s
         self.out_asc.append(translate.translate(su, self.tAsc.getState()), color)
-        
+
         self.hexdump(su, color)
         self.bscroll("end")
-    
+
     def hexdump(self, s, color):
         # selectively untouched hexdump
         th = self.tHex.getState()
@@ -306,6 +347,6 @@ class Gui():
         self.out_hex.pad.erase()
         self.out_hex.hexoffset = 0
         self.bscroll("end")
-        
+
     def quit(self):
         self.running = False
