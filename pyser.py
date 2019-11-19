@@ -4,71 +4,126 @@
 # Full featured serial console like cuteterm, but with a fancy ncurses-TUI.
 
 # TODO:
-# - Parameter via getopt
-# - write input/output to file (seperate and/or combined)
+# - set default line-ending or encoding on commandline?
 # - documentation/readme
-# - Better resize (don't clear/repopulate... this will be interesting)
+# - Better resize (redraw content instead of erasing)
 
 # https://docs.python.org/3/howto/curses.html
-# https://docs.python.org/3/library/curses.html
-# https://pyserial.readthedocs.io/
 
 import sys
-import curses
-#import serial
-import serdummy as serial
+import curses       # https://docs.python.org/3/library/curses.html
+import argparse     # https://docs.python.org/3/library/argparse.html
+import serial       # https://pyserial.readthedocs.io/
+#import serdummy as serial
 import finput
 import widgets
 import translate
 
-DEVICE = "/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0XXX"
-BAUD = 9600
-# port – Device name or None.
-# baudrate=9600 (int) – Baud rate such as 9600 or 115200 etc.
-# bytesize=8 – Number of data bits. Possible values: FIVEBITS, SIXBITS, SEVENBITS, EIGHTBITS
-# parity='N' – Enable parity checking. Possible values: PARITY_NONE, PARITY_EVEN, PARITY_ODD PARITY_MARK, PARITY_SPACE
-# stopbits=1 – Number of stop bits. Possible values: STOPBITS_ONE, STOPBITS_ONE_POINT_FIVE, STOPBITS_TWO
-# timeout=0.05 (float) – Set a read timeout value.
-# xonxoff=False (bool) – Enable software flow control.
-# rtscts=False (bool) – Enable hardware (RTS/CTS) flow control.
-# dsrdtr=False (bool) – Enable hardware (DSR/DTR) flow control.
-# exclusive=True (bool) – Set exclusive access mode (POSIX only). A port cannot be opened in exclusive access mode if it is already open in exclusive access mode.
-widgets.TxtWin.PADSIZE = 2000 # number of lines to keep in scrollback-pad # MAX: 32767
-RECDUMP = None # record received bytes to a file
-SNDDUMP = None # record sent bytes to a file
-BTHDUMP = None # record both in one file
-
-MAXFILEHEXDUMP = 4096 # when uploading a file, only files smaller then this are displayed in the hexdump. for larger files, a placeholder is shown. # MAX: 16*PADSIZE
-
 def launch():
-    #GETOPT ...
+    seroptions = [ # [short, long, default, help]
+        ["-r", "--baudrate", 9600, "Baud rate such as 9600 or 115200 etc."],    # // BAUD
+        ["-p", "--param", "8,N,1", """B,P,S
+        <B>-bytesize: Number of data bits. Possible values: 5-8
+        <P>-parity: Enable parity checking. Possible values: 
+                    N (None), E (Even), O (Odd) M (Mark), S (Space)
+        <S>-stopbits: Number of stop bits. Possible values: 1, 1.5, 2"""],
+        ["-t", "--timeout", 0.05, "Set a read timeout value"],
+        ["-x", "--xonxoff", False, "Enable software flow control"],
+        ["-c", "--rtscts", False, "Enable hardware (RTS/CTS) flow control"],
+        ["-d", "--dsrdtr", False, "Enable hardware (DSR/DTR) flow control"],
+        ["-n", "--nonexclusive", False, """Don't Set exclusive access mode (POSIX only). 
+        A port cannot be opened in exclusive access mode if it is already open in
+        exclusive access mode."""]
+    ]
+    otheroptions = [
+        ["-da", "--dumpall", "", "record both received and sent bytes in one file"],
+        ["-dr", "--dumprec", "", "record received bytes to a file"],
+        ["-ds", "--dumpsnd", "", "record sent bytes to a file"],
+        ["-s", "--padsize", 2000, "number of lines to keep in scrollback-pad (max. 32767)"],
+        ["-m", "--maxfilehex", 4096, """when uploading a file, only files smaller then this are displayed in the
+        hexdump. For larger files, a placeholder is shown. (max. 16 * padsize)"""]
+    ]
     
+    # OK, so lets go parsing
+    parser = argparse.ArgumentParser()
+    parser.add_argument("port", help="Device name or None", default="/dev/ttyUSB0", nargs="?")
+    for ao in seroptions + otheroptions:
+        if type(ao[2]) == bool:
+            parser.add_argument(ao[0], ao[1], action="store_true", help=ao[3])
+        else:
+            parser.add_argument(ao[0], ao[1], type=type(ao[2]), default=ao[2] , help=ao[3])
+        
+    # hier noch weitere options...
+    args = parser.parse_args()
+    # extract serial device options
+    serdev = dict(x for x in vars(args).items() if x[0] in map(lambda x: x[1][2:], seroptions))
+    # add port
+    serdev["port"] = args.port
+    # parse byteesize,parity,stop
+    try:
+        b,p,s = serdev["param"].split(",")
+        serdev.pop("param")
+        serdev["bytesize"] = int(b)
+        serdev["parity"] = p.upper()
+        serdev["stopbits"] = float(s)
+    except Exception as e:
+        print("ERROR:", e, type(e))
+        try: eno = e.errno
+        except: eno = 100
+        return eno
+    
+    # rename exclusive
+    serdev["exclusive"] = not serdev["nonexclusive"]
+    serdev.pop("nonexclusive")
+    
+    # validate / set other options
+    args.padsize = min(32767, args.padsize)
+    widgets.TxtWin.PADSIZE = args.padsize
+    args.maxfilehex = min(16 * args.padsize, args.maxfilehex)
     
     # Start!
     try:
-        curses.wrapper(tuimain, Iserial())
+        curses.wrapper(tuimain, Iserial(serdev, args), args)
     except Exception as e:
-        print("ERROR: "+str(e))
+        print("ERROR:", e, type(e))
         try: eno = e.errno
         except: eno = 100
         return eno
 
 class Iserial():
     """wrap serial read and write functions for logging"""
-    def __init__(self):
-        self.ser = serial.Serial(DEVICE, BAUD, timeout=.05, exclusive=True)
+    def __init__(self, serdev, options):
+        self.ser = serial.Serial(**serdev)
+        # open dump-files, if any
+        self.dumps = {
+            "snd": open(options.dumpsnd, "ab") if options.dumpsnd else None,
+            "rec": open(options.dumprec, "ab") if options.dumprec else None,
+            "all": open(options.dumpall, "ab") if options.dumpall else None
+        }
     
     def read(self):
         rx = self.ser.read()
         while self.ser.inWaiting() > 0: rx += self.ser.read(self.ser.inWaiting())
-        # TODO: write to file
+        if self.dumps["rec"]: 
+            self.dumps["rec"].write(rx)
+            self.dumps["rec"].flush()
+        if self.dumps["all"]: 
+            self.dumps["all"].write(rx)
+            self.dumps["all"].flush()
         return rx
     
     def write(self,s):
         self.ser.write(s)
-        # TODO: write to file
+        self.ser.flush()
+        if self.dumps["snd"]: 
+            self.dumps["snd"].write(s)
+            self.dumps["snd"].flush()
+        self.ser.flush()
+        if self.dumps["all"]: 
+            self.dumps["all"].write(s)
+            self.dumps["all"].flush()
 
-def tuimain(scr, ser):
+def tuimain(scr, ser, options):
     #### INIT CURSES, STYLES, GUI ####
     scr.clear()
     scr.nodelay(True)
@@ -93,7 +148,7 @@ def tuimain(scr, ser):
         "state"  : curses.color_pair(6)
     }
     gui = widgets.Gui()
-    gui.message("Connected to %s (%d baud)\n\n" % (DEVICE, BAUD))
+    gui.message("Connected to %s (%d baud, %s)\n\n" % (options.port, options.baudrate, options.param))
 
     #### MAIN LOOP ####
     while gui.running: 
@@ -134,7 +189,7 @@ def tuimain(scr, ser):
                 if f[0]:
                     s = f[0].read()
                     if ser: ser.write(s)
-                    if len(s) <= MAXFILEHEXDUMP:
+                    if len(s) <= options.maxfilehex:
                         gui.hexdump(s, "send")
                     else: # don't relay dump it
                         gui.hexdump("[BINARY DATA %d BYTES]".encode("ASCII") % len(s), "send")
