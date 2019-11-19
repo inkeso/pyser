@@ -23,7 +23,7 @@ class Serial():
         self.lastfix=int(time.time())
     
     def read(self, n=0):
-        if int(time.time()) % 60 == 0 and self.lastfix != int(time.time()):
+        if int(time.time()) % 2 == 0 and self.lastfix != int(time.time()):
             zefix = " ".join(random.sample(words,3)).title() + "! "
             self.buffer += (zefix + time.asctime() + "\r\n").encode()
             self.lastfix = int(time.time())
@@ -43,4 +43,7 @@ class Serial():
         self.buffer += b'\0' * 16
         self.buffer += hashlib.sha512(s).digest()
         self.buffer += b'\0' * 16
+    
+    def flush(self):
+        pass
 

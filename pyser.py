@@ -13,8 +13,8 @@
 import sys
 import curses       # https://docs.python.org/3/library/curses.html
 import argparse     # https://docs.python.org/3/library/argparse.html
-import serial       # https://pyserial.readthedocs.io/
-#import serdummy as serial
+#import serial       # https://pyserial.readthedocs.io/
+import serdummy as serial
 import finput
 import widgets
 import translate

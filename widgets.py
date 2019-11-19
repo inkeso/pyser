@@ -219,7 +219,7 @@ class Gui():
     HELP = ["""Keys\n====
 
 F1: Show this help
-F2: Pause/Unpause transmission [TODO]
+F2: pause / continue autoscrolling
 F4: Clear views / reset counter
 F5: Select Input mode (See below)
 F6: Append Line-ending on send (Text)
@@ -233,8 +233,7 @@ Home/End : Scroll to top or bottom
 
 ↓/↑ : go through input-history
 
-Input Modes
-===========
+Input Modes\n===========
 
 Text:
 ""","""
@@ -257,7 +256,7 @@ valid, readable file, it's content is sent unaltered. The content of the file
 is displayed in the hexdump as well, if the file is small enough (default:
 4kb). Otherwise a placeholder is shown. The input is taken literally, so you
 don't have to escape spaces in file- names or something.
-""","""\n"""]
+"""]
 
     def __init__(self):
         ay, ax = curses.LINES, curses.COLS
@@ -284,12 +283,14 @@ don't have to escape spaces in file- names or something.
         }
 
         as_s = self.out_asc.coords[1]
+        self.tPau = Toggle(self.out_asc.win, 0, 1,       "F2", ["▮▮", "▶"],  "")
         self.tInp = Toggle(self.in_str.win,  2, 2,       "F5", ["Text", "Hex", "File"],      "Mode")
         self.tBrk = Toggle(self.in_str.win,  2, 20,      "F6", list(self.n2brk.keys()),      "Line-end")
         self.tAsc = Toggle(self.out_asc.win, 0, as_s-30, "F7", list(translate.PAGES.keys()), "Codepage")
         self.tHex = Toggle(self.out_hex.win, 0, 3,       "F8", ["Both", "Receive", "Send"],  "Show Stream")
 
         self.toggles = {
+            curses.KEY_F2: self.tPau,
             curses.KEY_F5: self.tInp,
             curses.KEY_F6: self.tBrk,
             curses.KEY_F7: self.tAsc,
@@ -315,20 +316,25 @@ don't have to escape spaces in file- names or something.
     def show(self, s, color):
         # show stuff in both views and scroll to bottom. s may be (UTF-8) str oder bytearray
         # translate input for textview. always show everything there.
-        #su = s.encode("UTF-8") if type(s) is str else s
         su = s.encode(self.tAsc.getState(), "ignore") if type(s) is str else s
         self.out_asc.append(translate.translate(su, self.tAsc.getState()), color)
-
+        if self.tPau.getState() == "▮▮":
+            self.out_asc.scroll("end")
+        else:
+            self.out_asc.display()
+        
         self.hexdump(su, color)
-        self.bscroll("end")
 
     def hexdump(self, s, color):
         # selectively untouched hexdump
         th = self.tHex.getState()
         if th == "Both" or th+color in ("Receivetext", "Sendsend"):
             self.out_hex.appendHex(s, color)
-        self.out_hex.scroll("end")
-
+            if self.tPau.getState() == "▮▮":
+                self.out_hex.scroll("end")
+            else:
+                self.out_hex.display()
+        
 
     def message(self, s): # show message with different color only in textview
         self.out_asc.append(s, "offset")
@@ -338,7 +344,7 @@ don't have to escape spaces in file- names or something.
         self.out_asc.append(s, "error")
         self.out_asc.scroll("end")
 
-    def bscroll(self, s): # scroll both view
+    def bscroll(self, s): # scroll both view, if not paused
         self.out_asc.scroll(s)
         self.out_hex.scroll(s)
 
