@@ -211,7 +211,7 @@ class Key():
     def display(self):
         cy, cx = self.win.getyx()
         self.win.addstr(self.y, self.x, " %s " % self.key, COLOR["key"])
-        self.win.addstr(self.text+" ", COLOR["state"])
+        self.win.addstr(self.text+" ", COLOR["hint"])
         self.win.move(cy, cx)
         self.win.refresh()
 

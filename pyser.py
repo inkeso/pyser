@@ -13,8 +13,8 @@
 import sys
 import curses       # https://docs.python.org/3/library/curses.html
 import argparse     # https://docs.python.org/3/library/argparse.html
-#import serial       # https://pyserial.readthedocs.io/
-import serdummy as serial
+import serial       # https://pyserial.readthedocs.io/
+#import serdummy as serial
 import finput
 import widgets
 import translate
@@ -24,14 +24,14 @@ def launch():
         ["-r", "--baudrate", 9600, "Baud rate such as 9600 or 115200 etc."],    # // BAUD
         ["-p", "--param", "8,N,1", """B,P,S
         <B>-bytesize: Number of data bits. Possible values: 5-8
-        <P>-parity: Enable parity checking. Possible values: 
+        <P>-parity: Enable parity checking. Possible values:
                     N (None), E (Even), O (Odd) M (Mark), S (Space)
         <S>-stopbits: Number of stop bits. Possible values: 1, 1.5, 2"""],
         ["-t", "--timeout", 0.05, "Set a read timeout value."],
         ["-x", "--xonxoff", False, "Enable software flow control"],
         ["-c", "--rtscts", False, "Enable hardware (RTS/CTS) flow control"],
         ["-d", "--dsrdtr", False, "Enable hardware (DSR/DTR) flow control"],
-        ["-n", "--nonexclusive", False, """Don't Set exclusive access mode (POSIX only). 
+        ["-n", "--nonexclusive", False, """Don't Set exclusive access mode (POSIX only).
         A port cannot be opened in exclusive access mode if it is already open in
         exclusive access mode."""]
     ]
@@ -43,7 +43,7 @@ def launch():
         ["-m", "--maxfilehex", 4096, """when uploading a file, only files smaller then this are displayed in the
         hexdump. For larger files, a placeholder is shown. (max. 16 * padsize)"""]
     ]
-    
+
     # OK, so lets go parsing
     parser = argparse.ArgumentParser()
     parser.add_argument("port", help="Device name or None", default="/dev/ttyUSB0", nargs="?")
@@ -52,7 +52,7 @@ def launch():
             parser.add_argument(ao[0], ao[1], action="store_true", help=ao[3])
         else:
             parser.add_argument(ao[0], ao[1], type=type(ao[2]), default=ao[2] , help=ao[3])
-        
+
     # hier noch weitere options...
     args = parser.parse_args()
     # extract serial device options
@@ -71,16 +71,16 @@ def launch():
         try: eno = e.errno
         except: eno = 100
         return eno
-    
+
     # rename exclusive
     serdev["exclusive"] = not serdev["nonexclusive"]
     serdev.pop("nonexclusive")
-    
+
     # validate / set other options
     args.padsize = min(32767, args.padsize)
     widgets.TxtWin.PADSIZE = args.padsize
     args.maxfilehex = min(16 * args.padsize, args.maxfilehex)
-    
+
     # Start!
     try:
         curses.wrapper(tuimain, Iserial(serdev, args), args)
@@ -100,26 +100,26 @@ class Iserial():
             "rec": open(options.dumprec, "ab") if options.dumprec else None,
             "all": open(options.dumpall, "ab") if options.dumpall else None
         }
-    
+
     def read(self):
         rx = self.ser.read()
         while self.ser.inWaiting() > 0: rx += self.ser.read(self.ser.inWaiting())
-        if self.dumps["rec"]: 
+        if self.dumps["rec"]:
             self.dumps["rec"].write(rx)
             self.dumps["rec"].flush()
-        if self.dumps["all"]: 
+        if self.dumps["all"]:
             self.dumps["all"].write(rx)
             self.dumps["all"].flush()
         return rx
-    
+
     def write(self,s):
         self.ser.write(s)
         self.ser.flush()
-        if self.dumps["snd"]: 
+        if self.dumps["snd"]:
             self.dumps["snd"].write(s)
             self.dumps["snd"].flush()
         self.ser.flush()
-        if self.dumps["all"]: 
+        if self.dumps["all"]:
             self.dumps["all"].write(s)
             self.dumps["all"].flush()
 
@@ -129,23 +129,35 @@ def tuimain(scr, ser, options):
     scr.nodelay(True)
     scr.getch()
 
-    # Styles (see below)
-    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)  # header/border
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)  # Received data
-    curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)   # Sent data
-    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)    # ERROR
-    curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK) # offset
-    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE)   # status
+    # Styles
+    if curses.COLORS >= 256:
+        curses.init_pair(1, 244, curses.COLOR_BLACK) # header/border
+        curses.init_pair(2, 254, curses.COLOR_BLACK) # Received data
+        curses.init_pair(3, 85,  curses.COLOR_BLACK) # Sent data
+        curses.init_pair(4, 196, curses.COLOR_BLACK) # ERROR
+        curses.init_pair(5, 222, curses.COLOR_BLACK) # offset / messages 222
+        curses.init_pair(6, 15,  18) # status key
+        curses.init_pair(7, 248, 18) # status info
+        curses.init_pair(8, 11,  18) # status itself
+    else:
+        curses.init_pair(1, curses.COLOR_BLACK,  curses.COLOR_BLACK) # header/border
+        curses.init_pair(2, curses.COLOR_WHITE,  curses.COLOR_BLACK) # Received data
+        curses.init_pair(3, curses.COLOR_CYAN,   curses.COLOR_BLACK) # Sent data
+        curses.init_pair(4, curses.COLOR_RED,    curses.COLOR_BLACK) # ERROR
+        curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK) # offset / messages
+        curses.init_pair(6, curses.COLOR_WHITE,  curses.COLOR_BLUE)  # status key
+        curses.init_pair(7, curses.COLOR_WHITE,  curses.COLOR_BLUE)  # status info
+        curses.init_pair(8, curses.COLOR_YELLOW, curses.COLOR_BLUE)  # status itself
 
     widgets.COLOR = {
-        "header" : curses.color_pair(1) + curses.A_BOLD,
+        "header" : curses.color_pair(1) + (curses.A_BOLD if curses.COLORS < 256 else 0),
         "text"   : curses.color_pair(2),
         "send"   : curses.color_pair(3),
-        "error"  : curses.color_pair(4) + curses.A_BOLD,
+        "error"  : curses.color_pair(4) + (curses.A_BOLD if curses.COLORS < 256 else 0),
         "offset" : curses.color_pair(5),
         "key"    : curses.color_pair(6) + curses.A_BOLD,
-        "hint"   : curses.color_pair(6) + curses.A_ITALIC,
-        "state"  : curses.color_pair(6)
+        "hint"   : curses.color_pair(7),
+        "state"  : curses.color_pair(8) + (curses.A_BOLD if curses.COLORS < 256 else 0),
     }
     gui = widgets.Gui()
     gui.message("Connected to %s (%d baud, %s)\n\n" % (options.port, options.baudrate, options.param))
@@ -208,7 +220,7 @@ def tuimain(scr, ser, options):
         elif c == curses.KEY_BACKSPACE: gui.in_str.backspace(ins=="Hex")
         elif c == curses.KEY_UP: gui.in_str.goHistory(1)
         elif c == curses.KEY_DOWN: gui.in_str.goHistory(-1)
-        
+
         elif c == curses.KEY_NPAGE: gui.bscroll("down")
         elif c == curses.KEY_PPAGE: gui.bscroll("up")
         elif c == curses.KEY_HOME: gui.bscroll("home")
@@ -216,13 +228,13 @@ def tuimain(scr, ser, options):
 
         elif c in gui.keys: gui.keys[c].action()
         elif c in gui.toggles: gui.toggles[c].nextState()
-        
+
         elif c == curses.KEY_RESIZE:
-            # TODO: gracefully resize. 
+            # TODO: gracefully resize.
             # Starting over / clearing everything is ugly.
             curses.LINES, curses.COLS = scr.getmaxyx()
             gui = widgets.Gui()
-        
+
         #else: gui.message("Unmapped key %d\n" % c)
 
 if __name__ == '__main__': sys.exit(launch())
