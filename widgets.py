@@ -256,6 +256,7 @@ valid, readable file, it's content is sent unaltered. The content of the file
 is displayed in the hexdump as well, if the file is small enough (default:
 4kb). Otherwise a placeholder is shown. The input is taken literally, so you
 don't have to escape spaces in file- names or something.
+You can use TAB to complete filenames (or display ambiguous matches).
 """]
 
     def __init__(self):
@@ -301,8 +302,8 @@ don't have to escape spaces in file- names or something.
 
     def help(self):
         def wrop(s):
-            return textwrap.fill(s, 
-                width=self.out_asc.coords[1] - 3, 
+            return textwrap.fill(s,
+                width=self.out_asc.coords[1] - 3,
                 initial_indent = "",
                 subsequent_indent = " ")
         pleh = "".join(self.HELP[i*2] + wrop(self.HELP[i*2+1]) for i in range(3))
@@ -311,7 +312,7 @@ don't have to escape spaces in file- names or something.
         self.error("\n" + "-"*(self.out_asc.coords[1]-2))
         self.out_asc.scrollpos -= len(pleh.split("\n")) - self.out_asc.coords[0] + 5
         self.out_asc.scroll("none")
-        
+
 
     def show(self, s, color):
         # show stuff in both views and scroll to bottom. s may be (UTF-8) str oder bytearray
@@ -322,7 +323,7 @@ don't have to escape spaces in file- names or something.
             self.out_asc.scroll("end")
         else:
             self.out_asc.display()
-        
+
         self.hexdump(su, color)
 
     def hexdump(self, s, color):
@@ -334,7 +335,7 @@ don't have to escape spaces in file- names or something.
                 self.out_hex.scroll("end")
             else:
                 self.out_hex.display()
-        
+
 
     def message(self, s): # show message with different color only in textview
         self.out_asc.append(s, "offset")

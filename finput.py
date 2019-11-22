@@ -6,7 +6,6 @@
 
 import os
 
-
 def humansize(s):
     '''
     Return a string representing a human readable representation of a
@@ -19,6 +18,23 @@ def humansize(s):
         if size >= factor: break
     if suffix == 'B': return '%d %s' % (size/float(factor), suffix)
     return '%0.2f %s' % (size/float(factor), suffix)
+
+def sortedginfo(ss):
+    def ginfo(s):
+        nfo = "?"
+        if os.path.isdir(s):
+            nfo = "<DIR>"
+        else:
+            try: nfo = humansize(s)
+            except: pass
+        return (nfo, os.path.split(s)[-1])
+
+    li = [ginfo(x) for x in ss]
+    dirs = list(filter(lambda x: x[0] == "<DIR>", li))
+    dirs.sort(key=lambda x: x[1].upper())
+    fils = list(filter(lambda x: x[0] != "<DIR>", li))
+    fils.sort(key=lambda x: x[1].upper())
+    return ["%12s %s" % x for x in dirs+fils]
 
 
 def tryget(s):
@@ -45,30 +61,17 @@ def tryget(s):
     
     if os.path.isdir(s):
         try:
-            d = os.listdir(s)
-        except e:
+            li = sortedginfo(os.path.join(s,x) for x in os.listdir(s))
+        except Exception as e:
             return (None, str(e), False)
-        # expand to tuples (size, name)
-        def infotuple(x):
-            xp = os.path.join(s,x)
-            nfo = "?"
-            if os.path.isdir(xp):
-                nfo = "<DIR>"
-            else:
-                try: nfo = humansize(xp)
-                except: pass
-            return (nfo, x)
-        li = [infotuple(x) for x in d]
-        # sort dirs first and alphabetically
-        dirs = list(filter(lambda x: x[0] == "<DIR>", li))
-        dirs.sort(key=lambda x: x[1].upper())
-        fils = list(filter(lambda x: x[0] != "<DIR>", li))
-        fils.sort(key=lambda x: x[1].upper())
         res = "\n\n----- DIRECTORY %s -----\n\n" % s
-        res += "\n".join("%12s %s" % x for x in dirs)
-        res += "\n"
-        res += "\n".join("%12s %s" % x for x in fils)
+        res += "\n".join(li)
         return (None, res, True)
     
     return(None, s+" is not a regular file (or dir)", False)
 
+def complete(s):
+    """
+    returns a list of strings with matching files / dirs (starting with s)
+    """
+    return glob.glob(s+"*")

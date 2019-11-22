@@ -10,7 +10,9 @@
 
 # https://docs.python.org/3/howto/curses.html
 
+import os
 import sys
+import glob
 import curses       # https://docs.python.org/3/library/curses.html
 import argparse     # https://docs.python.org/3/library/argparse.html
 import serial       # https://pyserial.readthedocs.io/
@@ -21,7 +23,7 @@ import translate
 
 def launch():
     seroptions = [ # [short, long, default, help]
-        ["-r", "--baudrate", 9600, "Baud rate such as 9600 or 115200 etc."],    # // BAUD
+        ["-r", "--baudrate", 9600, "Baud rate such as 9600 or 115200 etc."],
         ["-p", "--param", "8,N,1", """B,P,S
         <B>-bytesize: Number of data bits. Possible values: 5-8
         <P>-parity: Enable parity checking. Possible values:
@@ -216,6 +218,16 @@ def tuimain(scr, ser, options):
                     gui.in_str.clear()
                 except ValueError:
                     gui.error("Invalid Hex-string\n")
+
+        elif c == 9 and ins == "File": # Tab-completion
+            matches = glob.glob(gui.in_str.inp+"*")
+            if len(matches) == 1:
+                gui.in_str.inp = matches[0]
+                if os.path.isdir(matches[0]): gui.in_str.inp += os.path.sep
+                gui.in_str.redraw()
+            else:
+                res = finput.sortedginfo(matches)
+                gui.message("\n\n----- "+gui.in_str.inp+"* -----\n\n" + "\n".join(res))
 
         elif c == curses.KEY_BACKSPACE: gui.in_str.backspace(ins=="Hex")
         elif c == curses.KEY_UP: gui.in_str.goHistory(1)
