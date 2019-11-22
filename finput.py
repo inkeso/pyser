@@ -69,9 +69,3 @@ def tryget(s):
         return (None, res, True)
     
     return(None, s+" is not a regular file (or dir)", False)
-
-def complete(s):
-    """
-    returns a list of strings with matching files / dirs (starting with s)
-    """
-    return glob.glob(s+"*")
