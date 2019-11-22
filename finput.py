@@ -36,7 +36,6 @@ def sortedginfo(ss):
     fils.sort(key=lambda x: x[1].upper())
     return ["%12s %s" % x for x in dirs+fils]
 
-
 def tryget(s):
     """
     Try and get contents of s. Return a tuple of: (content, message, success)

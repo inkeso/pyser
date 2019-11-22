@@ -242,11 +242,13 @@ ASCII will be translated to to selected codepage. If a special character can
 not be translated, it is omited (check hexdump). If a Line-end (F6) is
 selected, it will be appended to the sent string.
 ""","""
+
 Hex:
 ""","""
 send binary data: input hex-bytes to be sent (on enter). Only accepts 0-9 a-f.
 Each byte must be 2 chars.
 ""","""
+
 File:
 ""","""
 send a file (binary). In this mode, you can input a valid file- or dir- name.
