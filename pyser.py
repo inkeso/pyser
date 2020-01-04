@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Full featured serial console like cuteterm, but with a fancy ncurses-TUI.
+# Rich featured serial console like cuteterm, but with a fancy ncurses-TUI.
 
 # TODO:
-# - set default line-ending or encoding on commandline?
-# - documentation/readme
+# - line-editing
+# - set default line-ending or encoding on commandline? Autodetect?
 # - Better resize (redraw content instead of erasing)
 
 # https://docs.python.org/3/howto/curses.html
@@ -17,19 +17,21 @@ import curses       # https://docs.python.org/3/library/curses.html
 import argparse     # https://docs.python.org/3/library/argparse.html
 import serial       # https://pyserial.readthedocs.io/
 #import serdummy as serial
+import styles
 import finput
 import widgets
 import translate
 
 def launch():
     seroptions = [ # [short, long, default, help]
-        ["-r", "--baudrate", 9600, "Baud rate such as 9600 or 115200 etc."],
+        ["-r", "--baudrate", 9600, "Baud rate such as 9600 (default) or 115200 etc."],
         ["-p", "--param", "8,N,1", """B,P,S
         <B>-bytesize: Number of data bits. Possible values: 5-8
         <P>-parity: Enable parity checking. Possible values:
                     N (None), E (Even), O (Odd) M (Mark), S (Space)
-        <S>-stopbits: Number of stop bits. Possible values: 1, 1.5, 2"""],
-        ["-t", "--timeout", 0.05, "Set a read timeout value."],
+        <S>-stopbits: Number of stop bits. Possible values: 1, 1.5, 2
+        Default is 8,N,1"""],
+        ["-t", "--timeout", 0.05, "Set a read timeout value. Default is 0.05"],
         ["-x", "--xonxoff", False, "Enable software flow control"],
         ["-c", "--rtscts", False, "Enable hardware (RTS/CTS) flow control"],
         ["-d", "--dsrdtr", False, "Enable hardware (DSR/DTR) flow control"],
@@ -41,14 +43,14 @@ def launch():
         ["-da", "--dumpall", "", "record both received and sent bytes in one file"],
         ["-dr", "--dumprec", "", "record received bytes to a file"],
         ["-ds", "--dumpsnd", "", "record sent bytes to a file"],
-        ["-s", "--padsize", 2000, "number of lines to keep in scrollback-pad (max. 32767)"],
+        ["-s", "--padsize", 2000, "number of lines to keep in scrollback-pad (max. 32767, default 2000)"],
         ["-m", "--maxfilehex", 4096, """when uploading a file, only files smaller then this are displayed in the
-        hexdump. For larger files, a placeholder is shown. (max. 16 * padsize)"""]
+        hexdump. For larger files, a placeholder is shown. (max. 16 * padsize, default 4 KiB)"""]
     ]
 
     # OK, so lets go parsing
     parser = argparse.ArgumentParser()
-    parser.add_argument("port", help="Device name or None", default="/dev/ttyUSB0", nargs="?")
+    parser.add_argument("port", help="Device name or None (default: /dev/ttyUSB0)", default="/dev/ttyUSB0", nargs="?")
     for ao in seroptions + otheroptions:
         if type(ao[2]) == bool:
             parser.add_argument(ao[0], ao[1], action="store_true", help=ao[3])
@@ -131,36 +133,7 @@ def tuimain(scr, ser, options):
     scr.nodelay(True)
     scr.getch()
 
-    # Styles
-    if curses.COLORS >= 256:
-        curses.init_pair(1, 244, curses.COLOR_BLACK) # header/border
-        curses.init_pair(2, 254, curses.COLOR_BLACK) # Received data
-        curses.init_pair(3, 85,  curses.COLOR_BLACK) # Sent data
-        curses.init_pair(4, 196, curses.COLOR_BLACK) # ERROR
-        curses.init_pair(5, 222, curses.COLOR_BLACK) # offset / messages 222
-        curses.init_pair(6, 15,  18) # status key
-        curses.init_pair(7, 248, 18) # status info
-        curses.init_pair(8, 11,  18) # status itself
-    else:
-        curses.init_pair(1, curses.COLOR_BLACK,  curses.COLOR_BLACK) # header/border
-        curses.init_pair(2, curses.COLOR_WHITE,  curses.COLOR_BLACK) # Received data
-        curses.init_pair(3, curses.COLOR_CYAN,   curses.COLOR_BLACK) # Sent data
-        curses.init_pair(4, curses.COLOR_RED,    curses.COLOR_BLACK) # ERROR
-        curses.init_pair(5, curses.COLOR_YELLOW, curses.COLOR_BLACK) # offset / messages
-        curses.init_pair(6, curses.COLOR_WHITE,  curses.COLOR_BLUE)  # status key
-        curses.init_pair(7, curses.COLOR_WHITE,  curses.COLOR_BLUE)  # status info
-        curses.init_pair(8, curses.COLOR_YELLOW, curses.COLOR_BLUE)  # status itself
-
-    widgets.COLOR = {
-        "header" : curses.color_pair(1) + (curses.A_BOLD if curses.COLORS < 256 else 0),
-        "text"   : curses.color_pair(2),
-        "send"   : curses.color_pair(3),
-        "error"  : curses.color_pair(4) + (curses.A_BOLD if curses.COLORS < 256 else 0),
-        "offset" : curses.color_pair(5),
-        "key"    : curses.color_pair(6) + curses.A_BOLD,
-        "hint"   : curses.color_pair(7),
-        "state"  : curses.color_pair(8) + (curses.A_BOLD if curses.COLORS < 256 else 0),
-    }
+    widgets.COLOR = styles.CURRENT(curses)
     gui = widgets.Gui()
     gui.message("Connected to %s (%d baud, %s)\n\n" % (options.port, options.baudrate, options.param))
 
@@ -199,10 +172,19 @@ def tuimain(scr, ser, options):
                 gui.in_str.clear()
             elif ins == "File":
                 f = finput.tryget(inp)
-                gui.message(f[1]+"\n") if f[2] else gui.error(f[1]+"\n")
+                gui.message(f[1]+"\n") if f[2] else gui.message(f[1]+"\n", "error")
+                PROWIDTH = 40
                 if f[0]:
                     s = f[0].read()
-                    if ser: ser.write(s)
+                    if ser:
+                        # send in chunks to display progress
+                        chks = len(s) // (PROWIDTH-1)
+                        gui.message("░" * PROWIDTH + "\r", "send")
+                        for i in range(PROWIDTH):
+                            ser.write(s[(i*chks):((i+1)*chks)])
+                            gui.message("▓", "send")
+                        gui.message("\n")
+                        
                     if len(s) <= options.maxfilehex:
                         gui.hexdump(s, "send")
                     else: # don't relay dump it
@@ -217,7 +199,7 @@ def tuimain(scr, ser, options):
                     if ser: ser.write(bafh)
                     gui.in_str.clear()
                 except ValueError:
-                    gui.error("Invalid Hex-string\n")
+                    gui.message("Invalid Hex-string\n", "error")
 
         elif c == 9 and ins == "File": # Tab-completion
             matches = glob.glob(gui.in_str.inp+"*")
@@ -229,7 +211,7 @@ def tuimain(scr, ser, options):
                 res = finput.sortedginfo(matches)
                 gui.message("\n\n----- "+gui.in_str.inp+"* -----\n\n" + "\n".join(res))
 
-        elif c == curses.KEY_BACKSPACE: gui.in_str.backspace(ins=="Hex")
+        elif c in (127, curses.KEY_BACKSPACE): gui.in_str.backspace(ins=="Hex")
         elif c == curses.KEY_UP: gui.in_str.goHistory(1)
         elif c == curses.KEY_DOWN: gui.in_str.goHistory(-1)
 
@@ -247,6 +229,6 @@ def tuimain(scr, ser, options):
             curses.LINES, curses.COLS = scr.getmaxyx()
             gui = widgets.Gui()
 
-        #else: gui.message("Unmapped key %d\n" % c)
+        else: gui.message("Unmapped key %d\n" % c)
 
 if __name__ == '__main__': sys.exit(launch())

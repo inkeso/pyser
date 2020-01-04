@@ -309,9 +309,9 @@ You can use TAB to complete filenames (or display ambiguous matches).
                 initial_indent = "",
                 subsequent_indent = " ")
         pleh = "".join(self.HELP[i*2] + wrop(self.HELP[i*2+1]) for i in range(3))
-        self.error("\n" + "-"*(self.out_asc.coords[1]-2))
+        self.message("\n" + "-"*(self.out_asc.coords[1]-2), "error")
         self.message(pleh)
-        self.error("\n" + "-"*(self.out_asc.coords[1]-2))
+        self.message("\n" + "-"*(self.out_asc.coords[1]-2), "error")
         self.out_asc.scrollpos -= len(pleh.split("\n")) - self.out_asc.coords[0] + 5
         self.out_asc.scroll("none")
 
@@ -339,12 +339,8 @@ You can use TAB to complete filenames (or display ambiguous matches).
                 self.out_hex.display()
 
 
-    def message(self, s): # show message with different color only in textview
-        self.out_asc.append(s, "offset")
-        self.out_asc.scroll("end")
-
-    def error(self, s): # show error message with different color only in textview
-        self.out_asc.append(s, "error")
+    def message(self, s, col="offset"): # show message with different color only in textview
+        self.out_asc.append(s, col)
         self.out_asc.scroll("end")
 
     def bscroll(self, s): # scroll both view, if not paused
